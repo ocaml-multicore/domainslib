@@ -1,0 +1,4 @@
+(library
+ (name domainslib)
+ (public_name domainslib)
+ (modes native))
