@@ -5,4 +5,4 @@ domains.
 
 The supported data structures are:
 
-* [Bounded Channels]()
+* [Bounded Channels](https://github.com/ocaml-multicore/domainslib/blob/master/lib/chan.mli)
