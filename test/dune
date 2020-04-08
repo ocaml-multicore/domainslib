@@ -31,3 +31,14 @@
  (libraries domainslib)
  (modules game_of_life_multicore)
  (modes native))
+
+(test
+ (name spectralnorm2)
+ (modules spectralnorm2)
+ (modes native))
+
+(test
+ (name spectralnorm2_multicore)
+ (libraries domainslib)
+ (modules spectralnorm2_multicore)
+ (modes native))
