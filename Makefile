@@ -3,6 +3,11 @@ all:
 
 run_test:
 	dune exec test/test_chan.exe 1 100 1 1
+	dune exec test/fib.exe 43
+	dune exec test/fib.exe 1 43
+	dune exec test/enumerate_par.exe 1 100
+	dune exec test/game_of_life.exe 20 1024
+	dune exec test/game_of_life_multicore.exe 20 1024
 
 clean:
 	dune clean

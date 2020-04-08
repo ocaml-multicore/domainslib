@@ -4,3 +4,30 @@
  (modules test_chan)
  (modes native))
 
+(test
+ (name fib)
+ (modules fib)
+ (modes native))
+
+(test
+ (name fib_par)
+ (libraries domainslib)
+ (modules fib_par)
+ (modes native))
+
+(test
+ (name enumerate_par)
+ (libraries domainslib)
+ (modules enumerate_par)
+ (modes native))
+
+(test
+ (name game_of_life)
+ (modules game_of_life)
+ (modes native))
+
+(test
+ (name game_of_life_multicore)
+ (libraries domainslib)
+ (modules game_of_life_multicore)
+ (modes native))
