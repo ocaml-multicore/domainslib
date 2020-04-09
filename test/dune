@@ -38,6 +38,12 @@
  (modes native))
 
 (test
+  (name sum_par)
+  (libraries unix domainslib)
+	(modules sum_par)
+	(modes native))
+
+(test
  (name spectralnorm2_multicore)
  (libraries domainslib)
  (modules spectralnorm2_multicore)

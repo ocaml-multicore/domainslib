@@ -72,13 +72,15 @@ let teardown_pool pool =
   done;
   Array.iter Domain.join pool.domains
 
-let parallel_for pool ~chunk_size ~start ~finish ~body =
+let parallel_for_reduce pool reduce_fun init ~chunk_size ~start ~finish ~body =
   assert (chunk_size > 0);
-  let r = make_reducer (fun _ _ -> ()) () in
+  let r = make_reducer reduce_fun init in
   let work s e =
-    for i=s to e do
-      body i
-    done
+    let rec loop i acc =
+      if i > e then acc
+      else loop (i+1) (reduce_fun acc (body i))
+    in
+    loop s init
   in
   let rec loop i =
     if i+chunk_size > finish then
@@ -90,3 +92,6 @@ let parallel_for pool ~chunk_size ~start ~finish ~body =
   in
   loop start;
   reduce pool r
+
+let parallel_for pool ~chunk_size ~start ~finish ~body =
+  parallel_for_reduce pool (fun _ _ -> ()) () ~chunk_size ~start ~finish ~body
