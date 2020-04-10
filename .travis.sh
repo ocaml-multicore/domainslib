@@ -13,9 +13,7 @@ sh .travis-multicore-ocaml.sh
 export OPAMYES=1
 eval $(opam config env)
 
-opam switch create 4.06.1+multicore --repositories=multicore=git+https://github.com/ocamllabs/multicore-opam.git,default
 opam switch 4.06.1+multicore
 eval $(opam config env)
 opam install dune.1.9.1
-cd $REPO_DIR
 make run_test
