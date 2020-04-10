@@ -9,7 +9,7 @@
 let num_domains = try int_of_string Sys.argv.(1) with _ -> 1
 let n = try int_of_string Sys.argv.(2) with _ ->  2000
 
-module T = Domainslib.Task_pool
+module T = Domainslib.Task
 
 let eval_A i j = 1. /. float((i+j)*(i+j+1)/2+i+1)
 

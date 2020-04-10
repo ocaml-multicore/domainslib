@@ -1,7 +1,7 @@
 let num_domains = try int_of_string Sys.argv.(1) with _ -> 1
 let n = try int_of_string Sys.argv.(2) with _ -> 100
 
-module T = Domainslib.Task_pool
+module T = Domainslib.Task
 
 let _ =
   let p = T.setup_pool ~num_domains:(num_domains - 1) in

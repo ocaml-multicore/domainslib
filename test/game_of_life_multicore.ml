@@ -2,7 +2,7 @@ let num_domains = try int_of_string Sys.argv.(1) with _ -> 1
 let n_times = try int_of_string Sys.argv.(2) with _ -> 2
 let board_size = 1024
 
-module T = Domainslib.Task_pool
+module T = Domainslib.Task
 
 let rg =
   ref (Array.init board_size (fun _ -> Array.init board_size (fun _ -> Random.int 2)))
@@ -62,8 +62,8 @@ let rec repeat pool n =
   | _-> next pool; repeat pool (n-1)
 
 let ()=
-  let pool = Domainslib.Task_pool.setup_pool ~num_domains:(num_domains - 1) in
+  let pool = T.setup_pool ~num_domains:(num_domains - 1) in
   print !rg;
   repeat pool n_times;
   print !rg;
-  Domainslib.Task_pool.teardown_pool pool
+  T.teardown_pool pool
