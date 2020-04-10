@@ -15,5 +15,5 @@ eval $(opam config env)
 
 opam switch 4.06.1+multicore
 eval $(opam config env)
-opam install dune.1.9.1
+opam install dune
 make run_test
