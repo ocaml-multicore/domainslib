@@ -194,6 +194,8 @@ fi
 
 export OPAMYES=1
 
+OPAM_SWITCH=$OCAML_VERSION
+
 case $OPAM_INIT in
   true)
       opam init -a --bare "$BASE_REMOTE"
