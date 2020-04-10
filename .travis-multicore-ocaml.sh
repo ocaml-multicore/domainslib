@@ -179,7 +179,7 @@ install_on_osx () {
         sudo installer -verbose -pkg /Volumes/XQuartz-2.7.6/XQuartz.pkg -target /
         ;;
   esac
-	install_opam2 ;;
+	install_opam2
 }
 
 case $TRAVIS_OS_NAME in
