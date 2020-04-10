@@ -8,15 +8,6 @@ fork_branch=${FORK_BRANCH:-master}
 
 set -uex
 
-get() {
-  wget https://raw.githubusercontent.com/${fork_user}/ocaml-ci-scripts/${fork_branch}/$@
-}
-
-REPO_DIR=$(pwd)
-TMP_BUILD=$(mktemp -d)
-cd ${TMP_BUILD}
-
-#get .travis-ocaml.sh
 sh .travis-multicore-ocaml.sh
 
 export OPAMYES=1
