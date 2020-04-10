@@ -5,4 +5,4 @@ os:
   - linux
   - osx
 env:
-  - OCAML_VERSION=4.10
+  - OPAM_SWITCH=4.06.1+multicore

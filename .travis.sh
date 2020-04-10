@@ -16,8 +16,8 @@ REPO_DIR=$(pwd)
 TMP_BUILD=$(mktemp -d)
 cd ${TMP_BUILD}
 
-get .travis-ocaml.sh
-sh .travis-ocaml.sh
+#get .travis-ocaml.sh
+sh .travis-multicore-ocaml.sh
 
 export OPAMYES=1
 eval $(opam config env)
