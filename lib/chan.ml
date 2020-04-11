@@ -14,7 +14,7 @@ let make_unbounded () =
 (* [send'] is shared by both the blocking and polling versions. Returns a
  * boolean indicating whether the send was successful. Hence, it always returns
  * [true] if [polling] is [false]. *)
-let send' {buffer_size; contents} v polling =
+let send' {buffer_size; contents} v ~polling =
   let open Fun_queue in
   let rec loop () =
     let old_contents = Atomic.get contents in
@@ -56,7 +56,19 @@ let send' {buffer_size; contents} v polling =
            * *)
           let new_contents = Empty {receivers= receivers'} in
           if Atomic.compare_and_set contents old_contents new_contents
-          then (r := Some v; Domain.Sync.notify d; true)
+          then (
+            r := Some v;
+           (* Notifying another domain from within a critical section is unsafe
+            * in general. Notify blocks until the target domain is out of the
+            * critical section. If two domains are notifying each other from
+            * within critical section, then the program deadlocks. However,
+            * here (and other uses of notify in send' and recv' in the channel
+            * implementation), there is no possibility of other domains
+            * notifying this domain; only a blocked domain will be notified,
+            * and this domain is currently running. Hence, it is ok to notify
+            * from within the critical section. *)
+            Domain.Sync.notify d;
+            true )
           else loop ()
     end
     | NotEmpty {senders; messages} ->
@@ -89,15 +101,15 @@ let send' {buffer_size; contents} v polling =
   Domain.Sync.critical_section loop
 
 let send c v =
-  let r = send' c v false in
+  let r = send' c v ~polling:false in
   assert r
 
-let send_poll c v = send' c v true
+let send_poll c v = send' c v ~polling:true
 
 (* [recv'] is shared by both the blocking and polling versions. Returns a an
  * optional value indicating whether the receive was successful. Hence, it
  * always returns [Some v] if [polling] is [false]. *)
-let recv' {buffer_size; contents} polling =
+let recv' {buffer_size; contents} ~polling =
   let open Fun_queue in
   let rec loop () =
     let old_contents = Atomic.get contents in
@@ -161,8 +173,8 @@ let recv' {buffer_size; contents} polling =
   Domain.Sync.critical_section loop
 
 let recv c =
-  match recv' c false with
+  match recv' c ~polling:false with
   | None -> failwith "Chan.recv: impossible - no message"
   | Some m -> m
 
-let recv_poll c = recv' c true
+let recv_poll c = recv' c ~polling:true
