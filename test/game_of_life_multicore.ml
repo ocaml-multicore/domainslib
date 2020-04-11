@@ -1,6 +1,6 @@
 let num_domains = try int_of_string Sys.argv.(1) with _ -> 1
 let n_times = try int_of_string Sys.argv.(2) with _ -> 2
-let board_size = 1024
+let board_size = try int_of_string Sys.argv.(3) with _ -> 1024
 
 module T = Domainslib.Task
 

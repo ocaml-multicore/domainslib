@@ -10,13 +10,12 @@ let rec fib n =
 let rec fib_par pool n =
   if n <= 40 then fib n
   else
-    let r = T.make_reducer (+) 0 in
-    let a = T.async pool r (fun _ -> fib_par pool (n-1)) in
-    let b = T.async pool r (fun _ -> fib_par pool (n-2)) in
-    T.await a + T.await b
+    let a = T.async pool (fun _ -> fib_par pool (n-1)) in
+    let b = T.async pool (fun _ -> fib_par pool (n-2)) in
+    T.await pool a + T.await pool b
 
 let main =
   let pool = T.setup_pool ~num_domains:(num_domains - 1) in
   let res = fib_par pool n in
   T.teardown_pool pool;
-  Printf.printf "fib(%d) = %d" n res
+  Printf.printf "fib(%d) = %d\n" n res

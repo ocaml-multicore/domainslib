@@ -1,5 +1,5 @@
 let n_times = try int_of_string Sys.argv.(1) with _ -> 2
-let board_size = 1024
+let board_size = try int_of_string Sys.argv.(2) with _ -> 1024
 
 let rg =
   ref (Array.init board_size (fun _ -> Array.init board_size (fun _ -> Random.int 2)))
