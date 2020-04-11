@@ -44,6 +44,13 @@
 	(modes native))
 
 (test
+  (name task_exn)
+  (libraries domainslib)
+	(modules task_exn)
+	(modes native))
+
+
+(test
  (name spectralnorm2_multicore)
  (libraries domainslib)
  (modules spectralnorm2_multicore)

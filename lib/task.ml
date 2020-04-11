@@ -2,7 +2,7 @@ type 'a task = unit -> 'a
 
 type 'a promise = ('a, exn) result option Atomic.t
 
-exception TasksActive of Domain.id
+exception TasksActive
 
 type task_msg =
   Task : 'a task * 'a promise -> task_msg
@@ -19,7 +19,7 @@ let do_task f p =
   with e ->
     Atomic.set p (Some (Error e));
     match e with
-    | TasksActive _ -> raise e
+    | TasksActive -> raise e
     | _ -> ()
 
 let setup_pool ~num_domains =
@@ -45,7 +45,7 @@ let rec await pool promise =
       begin match Chan.recv_poll pool.task_chan with
       | None -> Domain.Sync.cpu_relax ()
       | Some (Task (t, p)) -> do_task t p
-      | Some Quit -> raise (TasksActive (Domain.self ()))
+      | Some Quit -> raise TasksActive
       end;
       await pool promise
   | Some (Ok v) -> v

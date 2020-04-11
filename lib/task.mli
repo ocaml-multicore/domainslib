@@ -2,6 +2,7 @@ type 'a task = unit -> 'a
 (** Type of task *)
 
 type 'a promise
+(** Type of promises *)
 
 type pool
 (** Type of task pool *)
@@ -9,8 +10,11 @@ type pool
 val setup_pool : num_domains:int -> pool
 (** Sets up a task execution pool with [num_domains]. *)
 
+exception TasksActive
+
 val teardown_pool : pool -> unit
-(** Tears down the task execution pool. *)
+(** Tears down the task execution pool.
+  * Raises [TasksActive] exception if any tasks are currently active. *)
 
 val async : pool -> 'a task -> 'a promise
 (** [async p t] runs the task [t] asynchronously in the pool [p]. The function
