@@ -5,7 +5,7 @@ let num_receivers = try int_of_string Sys.argv.(4) with _ -> 1
 
 module C = Domainslib.Chan
 
-let c = C.make buffer_size
+let c = C.make_bounded buffer_size
 
 let rec receiver i n =
   if i = n then
@@ -33,4 +33,18 @@ let _ =
       Domain.spawn (fun _ -> receiver 0 (num_items / num_receivers)))
   in
   Array.iter Domain.join senders;
-  Array.iter Domain.join receivers
+  Array.iter Domain.join receivers;
+  begin match C.recv_poll c with
+  | None -> ()
+  | Some _ -> assert false
+  end;
+  for _i=1 to buffer_size do
+    C.send c 0
+  done;
+  for _i=1 to buffer_size do
+    ignore (C.recv c)
+  done;
+  begin match C.recv_poll c with
+  | None -> ()
+  | Some _ -> assert false
+  end
