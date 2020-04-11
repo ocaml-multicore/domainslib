@@ -39,7 +39,7 @@
 
 (test
   (name sum_par)
-  (libraries unix domainslib)
+  (libraries domainslib)
 	(modules sum_par)
 	(modes native))
 
