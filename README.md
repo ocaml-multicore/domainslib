@@ -15,3 +15,37 @@ The supported data structures are:
 See
 [examples](https://github.com/ocaml-multicore/domainslib/tree/task_pool/test)
 for usage.
+
+## Installation
+
+The library can be installed using
+[`multicore-opam`](https://github.com/ocaml-multicore/multicore-opam), an OPAM
+repository of multicore specific packages.
+
+```bash
+$ opam update
+$ opam switch create 4.06.1+multicore --repositories=multicore=git+https://github.com/ocamllabs/multicore-opam.git,default
+$ opam switch 4.06.1+multicore
+$ opam install dune.1.9.1 domainslib
+```
+
+## Development
+
+If you are interested in hacking on the implementation, then `opam pin` this
+repository:
+
+First install the multicore compiler and dune:
+```bash
+$ opam update
+$ opam switch create 4.06.1+multicore --repositories=multicore=git+https://github.com/ocamllabs/multicore-opam.git,default
+$ opam switch 4.06.1+multicore
+$ opam install dune.1.9.1
+```
+
+Then, pin a clone of this repo:
+
+```bash
+$ git clone https://github.com/ocaml-multicore/domainslib
+$ cd domainslib
+$ opam pin add domainslib file://`pwd`
+```
