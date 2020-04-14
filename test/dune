@@ -50,8 +50,15 @@
 	(modes native))
 
 
-(test
+ (test
  (name spectralnorm2_multicore)
  (libraries domainslib)
  (modules spectralnorm2_multicore)
+ (modes native))
+
+
+(test
+ (name summed_area_table)
+ (libraries domainslib)
+ (modules summed_area_table)
  (modes native))

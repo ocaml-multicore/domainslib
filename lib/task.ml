@@ -81,3 +81,51 @@ let parallel_for_reduce pool reduce_fun init ~chunk_size ~start ~finish ~body =
 
 let parallel_for pool ~chunk_size ~start ~finish ~body =
   parallel_for_reduce pool (fun _ _ -> ()) () ~chunk_size ~start ~finish ~body
+
+let parallel_scan pool op elements =
+
+  let scan_part op elements prefix_sum start finish =
+    assert (Array.length elements > (finish - start));
+    for i = (start + 1) to finish do
+      prefix_sum.(i) <- op prefix_sum.(i - 1) elements.(i)
+    done
+  in
+  let add_offset op prefix_sum offset start finish =
+    assert (Array.length prefix_sum > (finish - start));
+    for i = start to finish do
+      prefix_sum.(i) <- op offset prefix_sum.(i)
+    done
+  in
+  let n = Array.length elements in
+  let p = (Array.length pool.domains) + 1 in
+  let prefix_s = Array.copy elements in(*for having the same type as elements*)
+
+  (*sweep 1*)
+  parallel_for pool ~chunk_size:1 ~start:0 ~finish:(p - 1)
+  ~body:(fun i ->
+    let s = (i * n) / (p ) in
+    let e = (i + 1) * n / (p ) - 1 in
+    (* Printf.printf "s = %d e = %d\n" s e; *)
+    scan_part op elements prefix_s s e);
+
+  (*Calculate and store offsets*)
+
+  if (p > 2) then begin
+  let x = ref prefix_s.(n/p - 1) in
+  for i = 2 to p do
+      let ind = i * n / p - 1 in
+      x := op prefix_s.(ind) !x;
+      prefix_s.(ind) <- !x
+  done
+  end;
+
+  (*sweep 2*)
+  parallel_for pool ~chunk_size:1 ~start:1 ~finish:(p - 1)
+  ~body:( fun i ->
+    let s = i * n / (p) in
+    let e = (i + 1) * n / (p) - 2 in
+    let offset = prefix_s.(s - 1) in
+      add_offset op prefix_s offset s e
+    );
+
+  prefix_s
