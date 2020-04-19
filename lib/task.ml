@@ -97,7 +97,7 @@ let parallel_scan pool op elements =
     done
   in
   let n = Array.length elements in
-  let p = (Array.length pool.domains) + 1 in
+  let p = (Array.length pool.domains) + 1 in (*total processing elements*)
   let prefix_s = Array.copy elements in(*for having the same type as elements*)
 
   (*sweep 1*)

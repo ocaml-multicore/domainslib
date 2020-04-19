@@ -27,7 +27,7 @@ let calc_table pool mat =
   (transpose res)
 
 let _ =
-  let m = Array.init size (fun _ -> Array.init size (fun _ -> Random.int size))
+  let m = Array.make_matrix size size 1 (*Array.init size (fun _ -> Array.init size (fun _ -> Random.int size))*)
   in
   let pool = T.setup_pool ~num_domains:(num_domains - 1) in
   let _ = calc_table pool m in
