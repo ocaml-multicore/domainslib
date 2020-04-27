@@ -39,3 +39,9 @@ val parallel_for_reduce : pool -> ('a -> 'a -> 'a) -> 'a -> chunk_size:int ->
 (** [parallel_for_reduce p r i c s f b] is similar to [parallel_for] except
   * that the result returned by each iteration is reduced with [r] with initial
   * value [i]. *)
+
+val parallel_scan : pool -> ('a -> 'a -> 'a) -> 'a array -> 'a array
+(** [parallel_scan p op a] computes the scan of the array [a]
+  * in parallel with binary operator [op] and returns the result array.
+  * Scan is similar to [Array.fold_left] but returns an array of reduced
+  * intermediate values *)
