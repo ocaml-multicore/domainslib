@@ -97,18 +97,14 @@ let parallel_scan pool op elements =
     done
   in
   let n = Array.length elements in
-  let p = (Array.length pool.domains) + 1 in (*total processing elements*)
-  let prefix_s = Array.copy elements in(*for having the same type as elements*)
+  let p = (Array.length pool.domains) + 1 in
+  let prefix_s = Array.copy elements in
 
-  (*sweep 1*)
   parallel_for pool ~chunk_size:1 ~start:0 ~finish:(p - 1)
   ~body:(fun i ->
     let s = (i * n) / (p ) in
     let e = (i + 1) * n / (p ) - 1 in
-    (* Printf.printf "s = %d e = %d\n" s e; *)
     scan_part op elements prefix_s s e);
-
-  (*Calculate and store offsets*)
 
   if (p > 2) then begin
   let x = ref prefix_s.(n/p - 1) in
@@ -119,7 +115,6 @@ let parallel_scan pool op elements =
   done
   end;
 
-  (*sweep 2*)
   parallel_for pool ~chunk_size:1 ~start:1 ~finish:(p - 1)
   ~body:( fun i ->
     let s = i * n / (p) in
