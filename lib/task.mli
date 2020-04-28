@@ -7,6 +7,10 @@ type 'a promise
 type pool
 (** Type of task pool *)
 
+val create_int_array : int -> int array
+(** [create_int_array n] returns an uninitialised array of size n. The
+  * uninitialized array can be further initialised in parallel.*)
+
 val setup_pool : num_domains:int -> pool
 (** Sets up a task execution pool with [num_domains]. *)
 

@@ -66,3 +66,9 @@
  (libraries domainslib unix)
  (modules prefix_sum)
  (modes native))
+
+(test
+ (name par_init)
+ (libraries domainslib)
+ (modules par_init)
+ (modes native))

@@ -12,6 +12,9 @@ type pool =
   {domains : unit Domain.t array;
    task_chan : task_msg Chan.t}
 
+let create_int_array : int -> int array = fun n ->
+    Obj.magic (Array.create_float n)
+
 let do_task f p =
   try
     let res = f () in
