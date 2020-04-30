@@ -80,7 +80,23 @@ let parallel_for_reduce pool reduce_fun init ~chunk_size ~start ~finish ~body =
   List.fold_left reduce_fun init results
 
 let parallel_for pool ~chunk_size ~start ~finish ~body =
-  parallel_for_reduce pool (fun _ _ -> ()) () ~chunk_size ~start ~finish ~body
+  assert (chunk_size > 0);
+  let work s e =
+    for i=s to e do
+      body i
+    done
+  in
+  let rec loop i acc =
+    if i+chunk_size > finish then
+      let p = async pool (fun _ -> work i finish) in
+      p::acc
+    else begin
+      let p = async pool (fun _ -> work i (i+chunk_size-1)) in
+      loop (i+chunk_size) (p::acc)
+    end
+  in
+  let ps = loop start [] in
+  List.iter (await pool) ps
 
 let parallel_scan pool op elements =
 
