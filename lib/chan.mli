@@ -1,5 +1,5 @@
 type 'a t
-(** The type of bounded channels *)
+(** The type of channels *)
 
 val make_bounded : int -> 'a t
 (** [make_bounded n] makes a bounded channel with a buffer of size [n]. Raises
