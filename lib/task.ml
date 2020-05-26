@@ -80,4 +80,63 @@ let parallel_for_reduce pool reduce_fun init ~chunk_size ~start ~finish ~body =
   List.fold_left reduce_fun init results
 
 let parallel_for pool ~chunk_size ~start ~finish ~body =
-  parallel_for_reduce pool (fun _ _ -> ()) () ~chunk_size ~start ~finish ~body
+  assert (chunk_size > 0);
+  let work s e =
+    for i=s to e do
+      body i
+    done
+  in
+  let rec loop i acc =
+    if i+chunk_size > finish then
+      let p = async pool (fun _ -> work i finish) in
+      p::acc
+    else begin
+      let p = async pool (fun _ -> work i (i+chunk_size-1)) in
+      loop (i+chunk_size) (p::acc)
+    end
+  in
+  let ps = loop start [] in
+  List.iter (await pool) ps
+
+let parallel_scan pool op elements =
+
+  let scan_part op elements prefix_sum start finish =
+    assert (Array.length elements > (finish - start));
+    for i = (start + 1) to finish do
+      prefix_sum.(i) <- op prefix_sum.(i - 1) elements.(i)
+    done
+  in
+  let add_offset op prefix_sum offset start finish =
+    assert (Array.length prefix_sum > (finish - start));
+    for i = start to finish do
+      prefix_sum.(i) <- op offset prefix_sum.(i)
+    done
+  in
+  let n = Array.length elements in
+  let p = (Array.length pool.domains) + 1 in
+  let prefix_s = Array.copy elements in
+
+  parallel_for pool ~chunk_size:1 ~start:0 ~finish:(p - 1)
+  ~body:(fun i ->
+    let s = (i * n) / (p ) in
+    let e = (i + 1) * n / (p ) - 1 in
+    scan_part op elements prefix_s s e);
+
+  if (p > 2) then begin
+  let x = ref prefix_s.(n/p - 1) in
+  for i = 2 to p do
+      let ind = i * n / p - 1 in
+      x := op prefix_s.(ind) !x;
+      prefix_s.(ind) <- !x
+  done
+  end;
+
+  parallel_for pool ~chunk_size:1 ~start:1 ~finish:(p - 1)
+  ~body:( fun i ->
+    let s = i * n / (p) in
+    let e = (i + 1) * n / (p) - 2 in
+    let offset = prefix_s.(s - 1) in
+      add_offset op prefix_s offset s e
+    );
+
+  prefix_s

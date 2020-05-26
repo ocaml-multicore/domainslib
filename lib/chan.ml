@@ -177,4 +177,7 @@ let recv c =
   | None -> failwith "Chan.recv: impossible - no message"
   | Some m -> m
 
-let recv_poll c = recv' c ~polling:true
+let recv_poll c =
+  match Atomic.get c.contents with
+  | Empty _ -> None
+  | _ -> recv' c ~polling:true
