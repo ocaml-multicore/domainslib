@@ -22,7 +22,6 @@ T.parallel_for pool ~chunk_size:1 ~start:0 ~finish:(num_domains - 1)
 
 let b = Array.create_uninitialised n
 
-
 type array_slice = {arr: A.Array.t; index: int; length: int}
 
 let print_array_slice s a =
