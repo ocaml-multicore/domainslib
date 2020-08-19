@@ -37,14 +37,6 @@ val parallel_for: pool -> ?chunk_size:int -> start:int -> finish:int ->
   * scheme.
   *)
 
-val parallel_for_sequential: pool -> chunk_size:int -> start:int -> finish:int ->
-                    body:(int -> unit) -> unit
-(** [parallel_for_sequential p c s f b] behaves similar to
-  * [for i=s to f do b i done], bun runs the for loop in parallel.
-  * The chunk size [c] determines the granularity of parallelisation.
-  * Individual iterates may be run in any order. In contrast to
-  * [parallel_for] the caller distributes all tasks to workers. *)
-
 val parallel_for_reduce : pool -> ('a -> 'a -> 'a) -> 'a -> chunk_size:int ->
                           start:int -> finish:int -> body:(int -> 'a) -> 'a
 (** [parallel_for_reduce p r i c s f b] is similar to [parallel_for] except

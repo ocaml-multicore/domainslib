@@ -99,25 +99,6 @@ let parallel_for pool ?(chunk_size=0) ~start ~finish ~body =
   in
   work pool body start finish
 
-let parallel_for_sequential pool ~chunk_size ~start ~finish ~body =
-  assert (chunk_size > 0);
-  let work s e =
-    for i=s to e do
-      body i
-    done
-  in
-  let rec loop i acc =
-    if i+chunk_size > finish then
-      let p = async pool (fun _ -> work i finish) in
-      p::acc
-    else begin
-      let p = async pool (fun _ -> work i (i+chunk_size-1)) in
-      loop (i+chunk_size) (p::acc)
-    end
-  in
-  let ps = loop start [] in
-  List.iter (await pool) ps
-
 let parallel_scan pool op elements =
 
   let scan_part op elements prefix_sum start finish =
