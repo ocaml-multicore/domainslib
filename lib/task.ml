@@ -79,12 +79,13 @@ let parallel_for_reduce pool reduce_fun init ~chunk_size ~start ~finish ~body =
   let results = List.map (await pool) ps in
   List.fold_left reduce_fun init results
 
-let parallel_for pool ?(chunk_size=0) ~start ~finish ~body =
+let parallel_for ?(chunk_size=0) ~start ~finish ~body pool =
   let chunk_size = if chunk_size > 0 then chunk_size
       else begin
         let n_domains = (Array.length pool.domains) + 1 in
         let n_tasks = finish - start + 1 in
-        max 1 (n_tasks/(8*n_domains))
+        if n_domains = 1 then n_tasks
+        else max 1 (n_tasks/(8*n_domains))
       end
   in
   let rec work pool fn s e =
