@@ -27,12 +27,15 @@ val await : pool -> 'a promise -> 'a
  * be returned. If the task had raised an exception, then [await] raises the
  * same exception. *)
 
-val parallel_for : pool -> chunk_size:int -> start:int -> finish:int ->
-                   body:(int -> unit) -> unit
-(** [parallel_for p c s f b] behaves similar to [for i=s to f do b i done], but
-  * runs the for loop in parallel. The chunk size [c] determines the
-  * granularity of parallelisation. Individual iterates may be run in any
-  * order. *)
+val parallel_for: ?chunk_size:int -> start:int -> finish:int ->
+                   body:(int -> unit) -> pool -> unit
+(** [parallel_for c s f b p] behaves similar to [for i=s to f do b i done], but
+  * runs the for loop in parallel. The chunk size [c] determines the number of
+  * body applications done in one task; this will default to
+  * [(finish-start + 1) / (8 * num_domains)]. Individual iterates may be run
+  * in any order. Tasks are distributed to workers using a divide-and-conquer
+  * scheme.
+  *)
 
 val parallel_for_reduce : pool -> ('a -> 'a -> 'a) -> 'a -> chunk_size:int ->
                           start:int -> finish:int -> body:(int -> 'a) -> 'a

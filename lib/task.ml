@@ -79,24 +79,26 @@ let parallel_for_reduce pool reduce_fun init ~chunk_size ~start ~finish ~body =
   let results = List.map (await pool) ps in
   List.fold_left reduce_fun init results
 
-let parallel_for pool ~chunk_size ~start ~finish ~body =
-  assert (chunk_size > 0);
-  let work s e =
-    for i=s to e do
-      body i
-    done
+let parallel_for ?(chunk_size=0) ~start ~finish ~body pool =
+  let chunk_size = if chunk_size > 0 then chunk_size
+      else begin
+        let n_domains = (Array.length pool.domains) + 1 in
+        let n_tasks = finish - start + 1 in
+        if n_domains = 1 then n_tasks
+        else max 1 (n_tasks/(8*n_domains))
+      end
   in
-  let rec loop i acc =
-    if i+chunk_size > finish then
-      let p = async pool (fun _ -> work i finish) in
-      p::acc
+  let rec work pool fn s e =
+    if e - s < chunk_size then
+      for i = s to e do fn i done
     else begin
-      let p = async pool (fun _ -> work i (i+chunk_size-1)) in
-      loop (i+chunk_size) (p::acc)
+      let d = s + ((e - s) / 2) in
+      let left = async pool (fun _ -> work pool fn s d) in
+      work pool fn (d+1) e;
+      await pool left
     end
   in
-  let ps = loop start [] in
-  List.iter (await pool) ps
+  work pool body start finish
 
 let parallel_scan pool op elements =
 
