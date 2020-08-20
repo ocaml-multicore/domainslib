@@ -1,20 +1,38 @@
 type 'a contents =
-  | Empty of {receivers: ('a option ref * Domain.id) Fun_queue.t}
-  | NotEmpty of {senders: ('a * Domain.id) Fun_queue.t; messages: 'a Fun_queue.t}
+  | Empty of {receivers: ('a option ref * Domain.Condition.t) Fun_queue.t}
+  | NotEmpty of {senders: ('a * Domain.Condition.t) Fun_queue.t; messages: 'a Fun_queue.t}
 
-type 'a t = {buffer_size: int option; contents: 'a contents Atomic.t}
+type 'a t = {
+  mutex: Domain.Mutex.t;
+  buffer_size: int option;
+  contents: 'a contents Atomic.t
+}
+
+let condition_key : Domain.Condition.t Domain.DLS.key = Domain.DLS.new_key ()
+
+let get_condvar m =
+  match Domain.DLS.get condition_key with
+  | None ->
+      let c = Domain.Condition.create m in
+      Domain.DLS.set condition_key c;
+      c
+  | Some c -> c
 
 let make_bounded n =
   if n < 0 then raise (Invalid_argument "Chan.make_bounded") ;
-  {buffer_size= Some n; contents = Atomic.make (Empty {receivers= Fun_queue.empty})}
+  {buffer_size= Some n;
+   contents = Atomic.make (Empty {receivers= Fun_queue.empty; });
+   mutex = Domain.Mutex.create ();}
 
 let make_unbounded () =
-  {buffer_size= None; contents = Atomic.make (Empty {receivers= Fun_queue.empty})}
+  {buffer_size= None;
+   contents = Atomic.make (Empty {receivers= Fun_queue.empty});
+   mutex = Domain.Mutex.create ();}
 
 (* [send'] is shared by both the blocking and polling versions. Returns a
  * boolean indicating whether the send was successful. Hence, it always returns
  * [true] if [polling] is [false]. *)
-let send' {buffer_size; contents} v ~polling =
+let send' {mutex; buffer_size; contents} v ~polling =
   let open Fun_queue in
   let rec loop () =
     let old_contents = Atomic.get contents in
@@ -30,13 +48,15 @@ let send' {buffer_size; contents} v ~polling =
             begin if not polling then begin
               (* The channel is empty (no senders), no waiting receivers,
                 * buffer size is 0 and we're not polling *)
+              let condition = get_condvar mutex in
               let new_contents =
                 NotEmpty
-                  {messages= empty; senders= push empty (v, Domain.self ())}
+                  {messages= empty; senders= push empty (v, condition)}
               in
+              Domain.Mutex.lock mutex;
               if Atomic.compare_and_set contents old_contents new_contents
-              then (Domain.Sync.wait (); true)
-              else loop ()
+              then (Domain.Condition.wait condition; true)
+              else (Domain.Mutex.unlock mutex; loop ())
             end else
               (* The channel is empty (no senders), no waiting receivers,
                 * buffer size is 0 and we're polling *)
@@ -51,25 +71,18 @@ let send' {buffer_size; contents} v ~polling =
             if Atomic.compare_and_set contents old_contents new_contents
             then true
             else loop ()
-      | Some ((r, d), receivers') ->
+      | Some ((r, condition), receivers') ->
           (* The channel is empty (no senders) and there are waiting receivers
            * *)
           let new_contents = Empty {receivers= receivers'} in
+          Domain.Mutex.lock mutex;
           if Atomic.compare_and_set contents old_contents new_contents
-          then (
+          then begin
             r := Some v;
-           (* Notifying another domain from within a critical section is unsafe
-            * in general. Notify blocks until the target domain is out of the
-            * critical section. If two domains are notifying each other from
-            * within critical section, then the program deadlocks. However,
-            * here (and other uses of notify in send' and recv' in the channel
-            * implementation), there is no possibility of other domains
-            * notifying this domain; only a blocked domain will be notified,
-            * and this domain is currently running. Hence, it is ok to notify
-            * from within the critical section. *)
-            Domain.Sync.notify d;
-            true )
-          else loop ()
+            Domain.Condition.signal condition;
+            Domain.Mutex.unlock mutex;
+            true
+           end else (Domain.Mutex.unlock mutex; loop ())
     end
     | NotEmpty {senders; messages} ->
         (* The channel is not empty *)
@@ -78,12 +91,19 @@ let send' {buffer_size; contents} v ~polling =
           begin if not polling then
             (* The channel is not empty, the buffer is full and we're not
               * polling *)
+            let condition = get_condvar mutex in
             let new_contents =
-              NotEmpty {senders= push senders (v, Domain.self ()); messages}
+              NotEmpty {senders= push senders (v, condition); messages}
             in
-            if Atomic.compare_and_set contents old_contents new_contents then
-              ( Domain.Sync.wait () ; true )
-            else loop ()
+            Domain.Mutex.lock mutex;
+            if Atomic.compare_and_set contents old_contents new_contents then begin
+              Domain.Condition.wait condition;
+              Domain.Mutex.unlock mutex;
+              true
+            end else begin
+              Domain.Mutex.unlock mutex;
+              loop ()
+            end
           else
             (* The channel is not empty, the buffer is full and we're
               * polling *)
@@ -98,7 +118,7 @@ let send' {buffer_size; contents} v ~polling =
           then true
           else loop ()
   in
-  Domain.Sync.critical_section loop
+  loop ()
 
 let send c v =
   let r = send' c v ~polling:false in
@@ -109,7 +129,7 @@ let send_poll c v = send' c v ~polling:true
 (* [recv'] is shared by both the blocking and polling versions. Returns a an
  * optional value indicating whether the receive was successful. Hence, it
  * always returns [Some v] if [polling] is [false]. *)
-let recv' {buffer_size; contents} ~polling =
+let recv' {mutex; buffer_size; contents} ~polling =
   let open Fun_queue in
   let rec loop () =
     let old_contents = Atomic.get contents in
@@ -119,12 +139,16 @@ let recv' {buffer_size; contents} ~polling =
         if not polling then begin
           (* The channel is empty (no senders), and we're not polling *)
           let msg_slot = ref None in
+          let condition = get_condvar mutex in
           let new_contents =
-            Empty {receivers= push receivers (msg_slot, Domain.self ())}
+            Empty {receivers= push receivers (msg_slot, condition)}
           in
+          Domain.Mutex.lock mutex;
           if Atomic.compare_and_set contents old_contents new_contents then
-            (Domain.Sync.wait (); !msg_slot)
-          else loop ()
+            (Domain.Condition.wait condition;
+             Domain.Mutex.unlock mutex;
+             !msg_slot)
+          else (Domain.Mutex.unlock mutex; loop ())
         end else
           (* The channel is empty (no senders), and we're polling *)
           None
@@ -146,7 +170,7 @@ let recv' {buffer_size; contents} ~polling =
             if Atomic.compare_and_set contents old_contents new_contents
             then Some m
             else loop ()
-        | None, Some ((m, s), senders') ->
+        | None, Some ((m, condition), senders') ->
             (* The channel is not empty, there are no messages, and there
               * is a waiting sender. This is only possible is the buffer
               * size is 0. *)
@@ -157,20 +181,28 @@ let recv' {buffer_size; contents} ~polling =
               else
                 NotEmpty {messages; senders= senders'}
             in
+            Domain.Mutex.lock mutex;
             if Atomic.compare_and_set contents old_contents new_contents
-            then (Domain.Sync.notify s; Some m)
-            else loop ()
-        | Some (m, messages'), Some ((ms, s), senders') ->
+            then begin
+              Domain.Condition.signal condition;
+              Domain.Mutex.unlock mutex;
+              Some m
+            end else (Domain.Mutex.unlock mutex; loop ())
+        | Some (m, messages'), Some ((ms, condition), senders') ->
             (* The channel is not empty, there is a message, and there is a
               * waiting sender. *)
             let new_contents =
               NotEmpty {messages= push messages' ms; senders= senders'}
             in
+            Domain.Mutex.lock mutex;
             if Atomic.compare_and_set contents old_contents new_contents
-            then (Domain.Sync.notify s; Some m)
-            else loop ()
+            then begin
+              Domain.Condition.signal condition;
+              Domain.Mutex.unlock mutex;
+              Some m
+            end else (Domain.Mutex.unlock mutex; loop ())
   in
-  Domain.Sync.critical_section loop
+  loop ()
 
 let recv c =
   match recv' c ~polling:false with
