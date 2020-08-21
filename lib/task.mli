@@ -27,7 +27,7 @@ val await : pool -> 'a promise -> 'a
  * be returned. If the task had raised an exception, then [await] raises the
  * same exception. *)
 
-val parallel_for: ?chunk_size:int -> start:int -> finish:int ->
+val parallel_for : ?chunk_size:int -> start:int -> finish:int ->
                    body:(int -> unit) -> pool -> unit
 (** [parallel_for c s f b p] behaves similar to [for i=s to f do b i done], but
   * runs the for loop in parallel. The chunk size [c] determines the number of
@@ -37,9 +37,9 @@ val parallel_for: ?chunk_size:int -> start:int -> finish:int ->
   * scheme.
   *)
 
-val parallel_for_reduce : pool -> ('a -> 'a -> 'a) -> 'a -> chunk_size:int ->
-                          start:int -> finish:int -> body:(int -> 'a) -> 'a
-(** [parallel_for_reduce p r i c s f b] is similar to [parallel_for] except
+val parallel_for_reduce : ?chunk_size:int -> start:int -> finish:int ->
+                body:(int -> 'a) -> pool -> ('a -> 'a -> 'a) -> 'a -> 'a
+(** [parallel_for_reduce c s f b p r i] is similar to [parallel_for] except
   * that the result returned by each iteration is reduced with [r] with initial
   * value [i]. *)
 
