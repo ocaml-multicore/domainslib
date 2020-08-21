@@ -12,6 +12,7 @@ run_test:
 	dune exec test/spectralnorm2_multicore.exe 1 2000
 	dune exec test/sum_par.exe 1 100
 	dune exec test/task_exn.exe
+	dune exec test/LU_decomposition_multicore.exe 1 512
 
 clean:
 	dune clean
