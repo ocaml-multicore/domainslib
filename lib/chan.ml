@@ -91,10 +91,10 @@ let send' {buffer_size; contents} v ~polling =
           let new_contents = Empty {receivers= receivers'} in
           if Atomic.compare_and_set contents old_contents new_contents
           then begin
-            Domain.Mutex.lock mc.mutex;
             r := Some v;
-            Domain.Condition.signal mc.condition;
+            Domain.Mutex.lock mc.mutex;
             Domain.Mutex.unlock mc.mutex;
+            Domain.Condition.signal mc.condition;
             true
            end else loop ()
     end
@@ -200,10 +200,10 @@ let recv' {buffer_size; contents} ~polling =
             in
             if Atomic.compare_and_set contents old_contents new_contents
             then begin
-              Domain.Mutex.lock mc.mutex;
               c := Notified;
-              Domain.Condition.signal mc.condition;
+              Domain.Mutex.lock mc.mutex;
               Domain.Mutex.unlock mc.mutex;
+              Domain.Condition.signal mc.condition;
               Some m
             end else loop ()
         | Some (m, messages'), Some ((ms, sc, mc), senders') ->
@@ -214,10 +214,10 @@ let recv' {buffer_size; contents} ~polling =
             in
             if Atomic.compare_and_set contents old_contents new_contents
             then begin
-              Domain.Mutex.lock mc.mutex;
               sc := Notified;
-              Domain.Condition.signal mc.condition;
+              Domain.Mutex.lock mc.mutex;
               Domain.Mutex.unlock mc.mutex;
+              Domain.Condition.signal mc.condition;
               Some m
             end else loop ()
   in
