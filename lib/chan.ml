@@ -16,17 +16,11 @@ type 'a t = {
   contents: 'a contents Atomic.t
 }
 
-let mutex_condvar_key : mutex_condvar Domain.DLS.key = Domain.DLS.new_key ()
-
-let get_mutex_condvar () =
-  match Domain.DLS.get mutex_condvar_key with
-  | None ->
-      let m = Domain.Mutex.create () in
-      let c = Domain.Condition.create m in
-      let mc = {mutex=m; condition=c} in
-      Domain.DLS.set mutex_condvar_key mc;
-      mc
-  | Some mc -> mc
+let mutex_condvar_key =
+  Domain.DLS.new_key (fun () ->
+    let m = Domain.Mutex.create () in
+    let c = Domain.Condition.create m in
+    {mutex=m; condition=c})
 
 let make_bounded n =
   if n < 0 then raise (Invalid_argument "Chan.make_bounded") ;
@@ -56,7 +50,7 @@ let send' {buffer_size; contents} v ~polling =
             begin if not polling then begin
               (* The channel is empty (no senders), no waiting receivers,
                 * buffer size is 0 and we're not polling *)
-              let mc = get_mutex_condvar () in
+              let mc = Domain.DLS.get mutex_condvar_key in
               let cond_slot = ref Waiting in
               let new_contents =
                 NotEmpty
@@ -106,7 +100,7 @@ let send' {buffer_size; contents} v ~polling =
             (* The channel is not empty, the buffer is full and we're not
               * polling *)
             let cond_slot = ref Waiting in
-            let mc = get_mutex_condvar () in
+            let mc = Domain.DLS.get mutex_condvar_key in
             let new_contents =
               NotEmpty {senders= push senders (v, cond_slot, mc); messages}
             in
@@ -153,7 +147,7 @@ let recv' {buffer_size; contents} ~polling =
         if not polling then begin
           (* The channel is empty (no senders), and we're not polling *)
           let msg_slot = ref None in
-          let mc = get_mutex_condvar () in
+          let mc = Domain.DLS.get mutex_condvar_key in
           let new_contents =
             Empty {receivers= push receivers (msg_slot, mc)}
           in
