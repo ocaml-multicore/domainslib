@@ -199,7 +199,7 @@ OPAM_SWITCH=$OCAML_VERSION
 case $OPAM_INIT in
   true)
       opam init -a --bare "$BASE_REMOTE"
-			opam switch create "$OPAM_SWITCH" --repositories=multicore=git+https://github.com/ocamllabs/multicore-opam.git,default
+      opam switch create "$OPAM_SWITCH" --repositories=multicore=git+https://github.com/ocamllabs/multicore-opam.git,default
       eval $(opam config env)
       ;;
 esac
