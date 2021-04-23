@@ -28,7 +28,7 @@ case $OPAM_VERSION in
     1.*) echo "Opam version '$OPAM_VERSION' is not supported"; exit 1;;
 esac
 
-if [ "$TRAVIS_OS_NAME" = "osx" ] ; then
+if [ "$RUNNER_OS" = "macOS" ] ; then
     brew update &> /dev/null
     BREW_OPAM_VERSION=$(brew info opam --json=v1 | sed -e 's/.*"versions":{[^}]*"stable":"//' -e 's/".*//')
     if [ "$OPAM_VERSION" != "$BREW_OPAM_VERSION" ] ; then
@@ -48,7 +48,7 @@ if [ "$OPAM_VERSION" != "$OPAM_LATEST_RELEASE" ] ; then
 fi
 
 if [ "${INSTALL_LOCAL+x}" = x ] ; then
-  if [ "$TRAVIS_OS_NAME" = osx ] ; then
+  if [ "$RUNNER_OS" = macOS ] ; then
     echo INSTALL_LOCAL not permitted for macOS targets
     exit 1
   fi
@@ -74,14 +74,14 @@ INSTALL_XQUARTZ=${INSTALL_XQUARTZ:-"false"}
 APT_UPDATED=0
 
 add_ppa () {
-    if [ "$TRAVIS_OS_NAME" = "linux" ] ; then
+    if [ "$RUNNER_OS" = "Linux" ] ; then
         APT_UPDATED=0
         sudo add-apt-repository --yes ppa:$1
     fi
 }
 
 apt_install () {
-    if [ "$TRAVIS_OS_NAME" = "linux" ] ; then
+    if [ "$RUNNER_OS" = "Linux" ] ; then
         if [ "$APT_UPDATED" -eq 0 ] ; then
             APT_UPDATED=1
             sudo apt-get update -qq
@@ -97,19 +97,15 @@ install_ocaml () {
 }
 
 install_opam2 () {
-    case $TRAVIS_OS_NAME in
-        linux)
-            case $TRAVIS_DIST in
-                precise|trusty|xenial)
-                    add_ppa ansible/bubblewrap ;;
-            esac
+    case $RUNNER_OS in
+        Linux)
             if [ "${INSTALL_LOCAL:=0}" = 0 ] ; then
                 install_ocaml
             fi
             apt_install bubblewrap
             sudo wget https://github.com/ocaml/opam/releases/download/$OPAM_VERSION/opam-$OPAM_VERSION-x86_64-linux -O /usr/local/bin/opam
             sudo chmod +x /usr/local/bin/opam ;;
-        osx)
+        macOS)
             if [ "${INSTALL_LOCAL:=0}" = 0 ] ; then
                 brew install ocaml
             fi
@@ -158,7 +154,6 @@ install_on_linux () {
   fi
 
   if [ "${INSTALL_LOCAL:=0}" != 0 ] ; then
-    echo -en "travis_fold:start:build.ocaml\r"
     echo "Building a local OCaml; this may take a few minutes..."
     wget "http://caml.inria.fr/pub/distrib/ocaml-${OCAML_FULL_VERSION%.*}/ocaml-$OCAML_FULL_VERSION.tar.gz"
     tar -xzf "ocaml-$OCAML_FULL_VERSION.tar.gz"
@@ -167,7 +162,6 @@ install_on_linux () {
     make world.opt
     sudo make install
     cd ..
-    echo -en "travis_fold:end:build.ocaml\r"
   fi
 }
 
@@ -182,30 +176,12 @@ install_on_osx () {
 	install_opam2
 }
 
-case $TRAVIS_OS_NAME in
-    osx) install_on_osx ;;
-    linux) install_on_linux ;;
+echo $RUNNER_OS
+case $RUNNER_OS in
+    macOS) install_on_osx ;;
+    Linux) install_on_linux ;;
 esac
 
-ocaml_package=ocaml-base-compiler
-if [ "$OCAML_BETA" = "enable" ]; then
-    ocaml_package=ocaml-variants
-fi
-
-export OPAMYES=1
-
-OPAM_SWITCH=$OCAML_VERSION
-
-case $OPAM_INIT in
-  true)
-      opam init -a --bare "$BASE_REMOTE"
-      opam switch create "$OPAM_SWITCH" --repositories=multicore=git+https://github.com/ocamllabs/multicore-opam.git,default
-      eval $(opam config env)
-      ;;
-esac
-
-echo OCAML_VERSION=$OCAML_VERSION >  .travis-ocaml.env
-echo OPAM_SWITCH=$OPAM_SWITCH     >> .travis-ocaml.env
 
 if [ -x "$(command -v ocaml)" ]; then
     ocaml -version
@@ -213,5 +189,6 @@ else
     echo "OCaml is not yet installed"
 fi
 
+opam init
 opam --version
 opam --git-version
