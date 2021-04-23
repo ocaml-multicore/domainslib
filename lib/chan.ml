@@ -1,6 +1,6 @@
 type mutex_condvar = {
-  mutex: Domain.Mutex.t;
-  condition: Domain.Condition.t
+  mutex: Mutex.t;
+  condition: Condition.t
 }
 
 type waiting_notified =
@@ -18,8 +18,8 @@ type 'a t = {
 
 let mutex_condvar_key =
   Domain.DLS.new_key (fun () ->
-    let m = Domain.Mutex.create () in
-    let c = Domain.Condition.create m in
+    let m = Mutex.create () in
+    let c = Condition.create () in
     {mutex=m; condition=c})
 
 let make_bounded n =
@@ -58,11 +58,11 @@ let send' {buffer_size; contents} v ~polling =
               in
               if Atomic.compare_and_set contents old_contents new_contents
               then begin
-                Domain.Mutex.lock mc.mutex;
+                Mutex.lock mc.mutex;
                 while !cond_slot = Waiting do
-                  Domain.Condition.wait mc.condition
+                  Condition.wait mc.condition mc.mutex
                 done;
-                Domain.Mutex.unlock mc.mutex;
+                Mutex.unlock mc.mutex;
                 true
               end else loop ()
             end else
@@ -86,9 +86,9 @@ let send' {buffer_size; contents} v ~polling =
           if Atomic.compare_and_set contents old_contents new_contents
           then begin
             r := Some v;
-            Domain.Mutex.lock mc.mutex;
-            Domain.Mutex.unlock mc.mutex;
-            Domain.Condition.signal mc.condition;
+            Mutex.lock mc.mutex;
+            Mutex.unlock mc.mutex;
+            Condition.signal mc.condition;
             true
            end else loop ()
     end
@@ -105,11 +105,11 @@ let send' {buffer_size; contents} v ~polling =
               NotEmpty {senders= push senders (v, cond_slot, mc); messages}
             in
             if Atomic.compare_and_set contents old_contents new_contents then begin
-              Domain.Mutex.lock mc.mutex;
+              Mutex.lock mc.mutex;
               while !cond_slot = Waiting do
-                Domain.Condition.wait mc.condition;
+                Condition.wait mc.condition mc.mutex;
               done;
-              Domain.Mutex.unlock mc.mutex;
+              Mutex.unlock mc.mutex;
               true
             end else loop ()
           else
@@ -153,11 +153,11 @@ let recv' {buffer_size; contents} ~polling =
           in
           if Atomic.compare_and_set contents old_contents new_contents then
           begin
-            Domain.Mutex.lock mc.mutex;
+            Mutex.lock mc.mutex;
             while !msg_slot = None do
-              Domain.Condition.wait mc.condition;
+              Condition.wait mc.condition mc.mutex;
             done;
-            Domain.Mutex.unlock mc.mutex;
+            Mutex.unlock mc.mutex;
             !msg_slot
           end else loop ()
         end else
@@ -195,9 +195,9 @@ let recv' {buffer_size; contents} ~polling =
             if Atomic.compare_and_set contents old_contents new_contents
             then begin
               c := Notified;
-              Domain.Mutex.lock mc.mutex;
-              Domain.Mutex.unlock mc.mutex;
-              Domain.Condition.signal mc.condition;
+              Mutex.lock mc.mutex;
+              Mutex.unlock mc.mutex;
+              Condition.signal mc.condition;
               Some m
             end else loop ()
         | Some (m, messages'), Some ((ms, sc, mc), senders') ->
@@ -209,9 +209,9 @@ let recv' {buffer_size; contents} ~polling =
             if Atomic.compare_and_set contents old_contents new_contents
             then begin
               sc := Notified;
-              Domain.Mutex.lock mc.mutex;
-              Domain.Mutex.unlock mc.mutex;
-              Domain.Condition.signal mc.condition;
+              Mutex.lock mc.mutex;
+              Mutex.unlock mc.mutex;
+              Condition.signal mc.condition;
               Some m
             end else loop ()
   in
