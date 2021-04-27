@@ -1,10 +1,7 @@
 
-# setup opam
-bash .ci-multicore-ocaml.sh
-
 # use opam to install multicore and dune
 opam update
-opam switch create 4.12.0+domains+effects --packages=ocaml-variants.4.12.0+domains+effects --repositories=multicore=git+https://github.com/ocaml-multicore/multicore-opam.git,default
+opam switch create ${OCAML_VERSION} --packages=ocaml-variants.${OCAML_VERSION} --repositories=multicore=git+https://github.com/ocaml-multicore/multicore-opam.git,default
 eval $(opam config env)
 opam install dune
 
