@@ -1,3 +1,5 @@
+(* mutex_condvar will be used per domain; so multiple fibers or
+   systhreads may share a mutex_condvar variable *)
 type mutex_condvar = {
   mutex: Mutex.t;
   condition: Condition.t
@@ -88,7 +90,7 @@ let send' {buffer_size; contents} v ~polling =
             r := Some v;
             Mutex.lock mc.mutex;
             Mutex.unlock mc.mutex;
-            Condition.signal mc.condition;
+            Condition.broadcast mc.condition;
             true
            end else loop ()
     end
@@ -197,7 +199,7 @@ let recv' {buffer_size; contents} ~polling =
               c := Notified;
               Mutex.lock mc.mutex;
               Mutex.unlock mc.mutex;
-              Condition.signal mc.condition;
+              Condition.broadcast mc.condition;
               Some m
             end else loop ()
         | Some (m, messages'), Some ((ms, sc, mc), senders') ->
@@ -211,7 +213,7 @@ let recv' {buffer_size; contents} ~polling =
               sc := Notified;
               Mutex.lock mc.mutex;
               Mutex.unlock mc.mutex;
-              Condition.signal mc.condition;
+              Condition.broadcast mc.condition;
               Some m
             end else loop ()
   in
