@@ -33,6 +33,14 @@
  (modes native))
 
 (test
+ (name LU_decomposition_multicore)
+ (libraries domainslib)
+ (flags (:standard -runtime-variant d))
+ (modules LU_decomposition_multicore)
+ (modes native))
+
+
+(test
  (name spectralnorm2)
  (modules spectralnorm2)
  (modes native))
