@@ -38,7 +38,7 @@ let make_unbounded () =
  * [true] if [polling] is [false]. *)
 let send' {buffer_size; contents} v ~polling =
   let open Fun_queue in
-  let rec loop () =
+  let rec loop backoff =
     let old_contents = Atomic.get contents in
     match old_contents with
     | Empty {receivers} -> begin
@@ -66,7 +66,12 @@ let send' {buffer_size; contents} v ~polling =
                 done;
                 Mutex.unlock mc.mutex;
                 true
-              end else loop ()
+              end else begin
+                match backoff with
+                | Some b -> (Backoff.once b; loop backoff)
+                | None -> (let b = Backoff.create () in
+                       Backoff.once b; loop (Some b))
+              end
             end else
               (* The channel is empty (no senders), no waiting receivers,
                 * buffer size is 0 and we're polling *)
@@ -80,7 +85,12 @@ let send' {buffer_size; contents} v ~polling =
             in
             if Atomic.compare_and_set contents old_contents new_contents
             then true
-            else loop ()
+            else begin
+              match backoff with
+              | Some b -> (Backoff.once b; loop backoff)
+              | None -> (let b = Backoff.create () in
+                     Backoff.once b; loop (Some b))
+            end
       | Some ((r, mc), receivers') ->
           (* The channel is empty (no senders) and there are waiting receivers
            * *)
@@ -92,7 +102,12 @@ let send' {buffer_size; contents} v ~polling =
             Mutex.unlock mc.mutex;
             Condition.broadcast mc.condition;
             true
-           end else loop ()
+          end else begin
+            match backoff with
+            | Some b -> (Backoff.once b; loop backoff)
+            | None -> (let b = Backoff.create () in
+                   Backoff.once b; loop (Some b))
+          end
     end
     | NotEmpty {senders; messages} ->
         (* The channel is not empty *)
@@ -113,7 +128,12 @@ let send' {buffer_size; contents} v ~polling =
               done;
               Mutex.unlock mc.mutex;
               true
-            end else loop ()
+            end else begin
+              match backoff with
+              | Some b -> (Backoff.once b; loop backoff)
+              | None -> (let b = Backoff.create () in
+                     Backoff.once b; loop (Some b))
+            end
           else
             (* The channel is not empty, the buffer is full and we're
               * polling *)
@@ -126,9 +146,14 @@ let send' {buffer_size; contents} v ~polling =
           in
           if Atomic.compare_and_set contents old_contents new_contents
           then true
-          else loop ()
+          else begin
+            match backoff with
+            | Some b -> (Backoff.once b; loop backoff)
+            | None -> (let b = Backoff.create () in
+                   Backoff.once b; loop (Some b))
+          end
   in
-  loop ()
+  loop None
 
 let send c v =
   let r = send' c v ~polling:false in
@@ -141,7 +166,7 @@ let send_poll c v = send' c v ~polling:true
  * always returns [Some v] if [polling] is [false]. *)
 let recv' {buffer_size; contents} ~polling =
   let open Fun_queue in
-  let rec loop () =
+  let rec loop backoff =
     let old_contents = Atomic.get contents in
     match old_contents with
     | Empty {receivers} ->
@@ -161,7 +186,12 @@ let recv' {buffer_size; contents} ~polling =
             done;
             Mutex.unlock mc.mutex;
             !msg_slot
-          end else loop ()
+          end else begin
+            match backoff with
+            | Some b -> (Backoff.once b; loop backoff)
+            | None -> (let b = Backoff.create () in
+                   Backoff.once b; loop (Some b))
+          end
         end else
           (* The channel is empty (no senders), and we're polling *)
           None
@@ -182,7 +212,12 @@ let recv' {buffer_size; contents} ~polling =
             in
             if Atomic.compare_and_set contents old_contents new_contents
             then Some m
-            else loop ()
+            else begin
+              match backoff with
+              | Some b -> (Backoff.once b; loop backoff)
+              | None -> (let b = Backoff.create () in
+                     Backoff.once b; loop (Some b))
+            end
         | None, Some ((m, c, mc), senders') ->
             (* The channel is not empty, there are no messages, and there
               * is a waiting sender. This is only possible is the buffer
@@ -201,7 +236,12 @@ let recv' {buffer_size; contents} ~polling =
               Mutex.unlock mc.mutex;
               Condition.broadcast mc.condition;
               Some m
-            end else loop ()
+            end else begin
+              match backoff with
+              | Some b -> (Backoff.once b; loop backoff)
+              | None -> (let b = Backoff.create () in
+                     Backoff.once b; loop (Some b))
+            end
         | Some (m, messages'), Some ((ms, sc, mc), senders') ->
             (* The channel is not empty, there is a message, and there is a
               * waiting sender. *)
@@ -215,9 +255,14 @@ let recv' {buffer_size; contents} ~polling =
               Mutex.unlock mc.mutex;
               Condition.broadcast mc.condition;
               Some m
-            end else loop ()
+            end else begin
+              match backoff with
+              | Some b -> (Backoff.once b; loop backoff)
+              | None -> (let b = Backoff.create () in
+                     Backoff.once b; loop (Some b))
+            end
   in
-  loop ()
+  loop None
 
 let recv c =
   match recv' c ~polling:false with
