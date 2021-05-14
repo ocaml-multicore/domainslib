@@ -29,13 +29,17 @@ let recv mchan =
   (*Printf.printf "recv: %d\n%!" i;*)
   Chan.recv mchan.channels.(Int.logand i mchan.mask)
 
+
+(*
+ THIS DOESN'T WORK, ANOTHER RECV CAN HOIST THE MESSAGE YOU WANTED
+ *)
 let recv_poll mchan =
   let rec loop () =
     let push_idx = Atomic.get mchan.push_index in
     let take_idx = Atomic.get mchan.take_index in
     (* FIXME: does wrapping behave as expected here? *)
     if take_idx - push_idx < 0 then
-      if Atomic.compare_and_set mchan.take_index take_idx (take_idx +1) then begin
+      if Atomic.compare_and_set mchan.take_index take_idx (take_idx+1) then begin
         (*Printf.printf "recv_poll: %d\n%!" take_idx;*)
         Some (Chan.recv mchan.channels.(Int.logand take_idx mchan.mask))
       end
