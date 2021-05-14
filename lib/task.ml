@@ -10,7 +10,7 @@ type task_msg =
 
 type pool =
   {domains : unit Domain.t array;
-   task_chan : task_msg Chan.t}
+   task_chan : task_msg Multi_channel.t}
 
 let do_task f p =
   try
@@ -23,9 +23,9 @@ let do_task f p =
     | _ -> ()
 
 let setup_pool ~num_domains =
-  let task_chan = Chan.make_unbounded () in
+  let task_chan = Multi_channel.make (num_domains+1) in
   let rec worker () =
-    match Chan.recv task_chan with
+    match Multi_channel.recv task_chan with
     | Quit -> ()
     | Task (t, p) ->
         do_task t p;
@@ -36,13 +36,13 @@ let setup_pool ~num_domains =
 
 let async pool task =
   let p = Atomic.make None in
-  Chan.send pool.task_chan (Task(task,p));
+  Multi_channel.send pool.task_chan (Task(task,p));
   p
 
 let rec await pool promise =
   match Atomic.get promise with
   | None ->
-      begin match Chan.recv_poll pool.task_chan with
+      begin match Multi_channel.recv_poll pool.task_chan with
       | None -> Domain.Sync.cpu_relax ()
       | Some (Task (t, p)) -> do_task t p
       | Some Quit -> raise TasksActive
@@ -53,7 +53,7 @@ let rec await pool promise =
 
 let teardown_pool pool =
   for _i=1 to Array.length pool.domains do
-    Chan.send pool.task_chan Quit
+    Multi_channel.send pool.task_chan Quit
   done;
   Array.iter Domain.join pool.domains
 
