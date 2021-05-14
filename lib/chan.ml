@@ -44,12 +44,13 @@ let send' {buffer_size; contents} v ~polling =
     | Empty {receivers} -> begin
       (* The channel is empty (no senders) *)
       match pop receivers with
-      | None ->
+      | None -> begin
           (* The channel is empty (no senders) and no waiting receivers *)
-          if buffer_size = Some 0 then
+          match buffer_size with
+          | Some x when x = 0 -> begin
             (* The channel is empty (no senders), no waiting receivers, and
               * buffer size is 0 *)
-            begin if not polling then begin
+            if not polling then begin
               (* The channel is empty (no senders), no waiting receivers,
                 * buffer size is 0 and we're not polling *)
               let mc = Domain.DLS.get mutex_condvar_key in
@@ -71,8 +72,8 @@ let send' {buffer_size; contents} v ~polling =
               (* The channel is empty (no senders), no waiting receivers,
                 * buffer size is 0 and we're polling *)
               false
-            end
-          else
+          end
+          | _ ->
             (* The channel is empty (no senders), no waiting receivers, and
               * the buffer size is non-zero *)
             let new_contents =
@@ -81,6 +82,7 @@ let send' {buffer_size; contents} v ~polling =
             if Atomic.compare_and_set contents old_contents new_contents
             then true
             else loop ()
+      end
       | Some ((r, mc), receivers') ->
           (* The channel is empty (no senders) and there are waiting receivers
            * *)
@@ -96,7 +98,8 @@ let send' {buffer_size; contents} v ~polling =
     end
     | NotEmpty {senders; messages} ->
         (* The channel is not empty *)
-        if buffer_size = Some (length messages) then
+        match buffer_size with
+        | Some x when x = (length messages) ->
           (* The channel is not empty, and the buffer is full *)
           begin if not polling then
             (* The channel is not empty, the buffer is full and we're not
@@ -119,7 +122,7 @@ let send' {buffer_size; contents} v ~polling =
               * polling *)
             false
           end
-        else
+        | _ ->
           (* The channel is not empty, and the buffer is not full *)
           let new_contents =
             NotEmpty {messages= push messages v; senders}
@@ -187,7 +190,9 @@ let recv' {buffer_size; contents} ~polling =
             (* The channel is not empty, there are no messages, and there
               * is a waiting sender. This is only possible is the buffer
               * size is 0. *)
-            assert (buffer_size = Some 0) ;
+            assert(match buffer_size with
+                   | Some x when x=0 -> true
+                   | _ -> false);
             let new_contents =
               if length senders' = 0 then
                 Empty {receivers = empty}
