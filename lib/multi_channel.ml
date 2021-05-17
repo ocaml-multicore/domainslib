@@ -7,17 +7,19 @@ type mutex_condvar = {
 }
 
 type dls_state = {
-  mc: mutex_condvar;
   mutable id: int;
+  mutable steal_offsets: int array;
+  rng_state: Random.State.t;
+  mc: mutex_condvar;
 }
 
 let dls_key =
   Domain.DLS.new_key (fun () ->
-    let m = Mutex.create () in
-    let c = Condition.create () in
     {
-      mc = {mutex=m; condition=c};
-      id = -1
+      id = -1;
+      steal_offsets = Array.make 1 0;
+      rng_state = Random.State.make_self_init ();
+      mc = {mutex=Mutex.create (); condition=Condition.create ()};
     })
 
 type waiting_released =
@@ -43,7 +45,7 @@ let make ?(recv_block_spins = 1024) n =
     channels = Array.init sz (fun _ -> Ws_deque.create ());
     waiters = Chan.make_unbounded ();
     next_domain_id = Atomic.make 0;
-    recv_block_spins
+    recv_block_spins;
     }
 
 let rec check_waiters mchan =
@@ -78,6 +80,7 @@ let get_id_key mchan =
   else begin
     let id = (register_domain mchan) in
     dls_state.id <- id;
+    dls_state.steal_offsets <- Array.init ((Array.length mchan.channels)-1) (fun i -> i+1);
     dls_state.id
   end
 
@@ -90,20 +93,25 @@ let send mchan v =
   check_waiters mchan;
   res
 
-let rec recv_poll_loop mchan cur left =
-  if left = 0 then None
+let rec recv_poll_loop mchan dls cur_offset =
+  let offsets = dls.steal_offsets in
+  let k = (Array.length offsets) - cur_offset in
+  if k = 0 then None
   else begin
-    match Ws_deque.steal mchan.channels.(Int.logand cur mchan.mask) with
+    let idx = cur_offset + (Random.State.int dls.rng_state k) in
+    let t = offsets.(idx) in
+    offsets.(idx) <- offsets.(cur_offset);
+    offsets.(cur_offset) <- t;
+    match Ws_deque.steal mchan.channels.(Int.logand (dls.id + t) mchan.mask) with
       | Some _ as v -> v
-      | None -> recv_poll_loop mchan (cur+1) (left-1)
+      | None -> recv_poll_loop mchan dls (cur_offset+1)
   end
 
 let recv_poll mchan =
   let id = (get_id_key mchan) in
   match Ws_deque.pop mchan.channels.(id) with
     | Some _ as v -> v
-    | None ->
-      recv_poll_loop mchan (id + 1) ((Array.length mchan.channels) - 1)
+    | None -> recv_poll_loop mchan (Domain.DLS.get dls_key) 0
 
 let rec recv_poll_repeated mchan repeats =
   match recv_poll mchan with
