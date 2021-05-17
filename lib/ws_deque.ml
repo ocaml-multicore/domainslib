@@ -119,7 +119,6 @@ module M : S = struct
   let size q =
     let b = Atomic.get q.bottom in
     let t = Atomic.get q.top in
-    assert (b - t >= 0);
     b - t
 
   let push q v =
@@ -137,31 +136,34 @@ module M : S = struct
     Atomic.set q.bottom (b + 1)
 
   let pop q =
-    let b = (Atomic.get q.bottom) - 1 in
-    Atomic.set q.bottom b;
-    let t = Atomic.get q.top in
-    let a = Atomic.get q.tab in
-    let size = b - t in
-    if size < 0 then begin
-      (* empty queue *)
-      Atomic.set q.bottom (b + 1);
-      None
-    end else
-      let out = CArray.get a b in
-      if b = t then begin
-        (* single last element *)
-        if (Atomic.compare_and_set q.top t (t + 1)) then
-          (Atomic.set q.bottom (b + 1); Some out)
-        else
-          (Atomic.set q.bottom (b + 1); None)
-      end else begin
-        (* non-empty queue *)
-        if q.next_shrink > size then begin
-          Atomic.set q.tab (CArray.shrink a t b);
-          set_next_shrink q
-        end;
-        Some out
-      end
+    if size q = 0 then None
+    else begin
+      let b = (Atomic.get q.bottom) - 1 in
+      Atomic.set q.bottom b;
+      let t = Atomic.get q.top in
+      let a = Atomic.get q.tab in
+      let size = b - t in
+      if size < 0 then begin
+        (* empty queue *)
+        Atomic.set q.bottom (b + 1);
+        None
+      end else
+        let out = CArray.get a b in
+        if b = t then begin
+          (* single last element *)
+          if (Atomic.compare_and_set q.top t (t + 1)) then
+            (Atomic.set q.bottom (b + 1); Some out)
+          else
+            (Atomic.set q.bottom (b + 1); None)
+        end else begin
+          (* non-empty queue *)
+          if q.next_shrink > size then begin
+            Atomic.set q.tab (CArray.shrink a t b);
+            set_next_shrink q
+          end;
+          Some out
+        end
+    end
 
   let steal q =
     let rec loop () =
