@@ -29,19 +29,21 @@ type 'a t = {
   channels: 'a Ws_deque.t array;
   waiters: (waiting_released ref * mutex_condvar ) Chan.t;
   next_domain_id: int Atomic.t;
+  recv_block_spins: int;
 }
 
 let rec log2 n =
   if n <= 1 then 0 else 1 + (log2 (n asr 1))
 
-let make n =
+let make ?(recv_block_spins = 1024) n =
   let sz = Int.shift_left 1 (log2 n) in
   assert ((sz >= n) && (sz > 0));
   assert (Int.logand sz (sz-1) == 0);
   { mask = sz - 1;
     channels = Array.init sz (fun _ -> Ws_deque.create ());
     waiters = Chan.make_unbounded ();
-    next_domain_id = Atomic.make 0
+    next_domain_id = Atomic.make 0;
+    recv_block_spins
     }
 
 let rec check_waiters mchan =
@@ -103,8 +105,18 @@ let recv_poll mchan =
     | None ->
       recv_poll_loop mchan (id + 1) ((Array.length mchan.channels) - 1)
 
-let rec recv mchan =
+let rec recv_poll_repeated mchan repeats =
   match recv_poll mchan with
+    | Some _ as v -> v
+    | None ->
+      if repeats = 1 then None
+      else begin
+        Domain.Sync.cpu_relax ();
+        recv_poll_repeated mchan (repeats - 1)
+      end
+
+let rec recv mchan =
+  match recv_poll_repeated mchan mchan.recv_block_spins with
     | Some v -> v
     | None ->
       begin
