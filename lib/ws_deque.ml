@@ -167,22 +167,20 @@ module M : S = struct
         end
     end
 
-  let steal q =
-    let rec loop () =
-      let t = Atomic.get q.top in
-      let b = Atomic.get q.bottom in
-      let a = Atomic.get q.tab in
-      let size = b - t in
-      if size <= 0 then
-        None
-      else
-        let out = CArray.get a t in
-        if Atomic.compare_and_set q.top t (t + 1) then
-          Some out
-        else begin
-          Domain.Sync.cpu_relax ();
-          loop ()
-        end
-    in loop ()
+  let rec steal q =
+    let t = Atomic.get q.top in
+    let b = Atomic.get q.bottom in
+    let a = Atomic.get q.tab in
+    let size = b - t in
+    if size <= 0 then
+      None
+    else
+      let out = CArray.get a t in
+      if Atomic.compare_and_set q.top t (t + 1) then
+        Some out
+      else begin
+        Domain.Sync.cpu_relax ();
+        steal q
+      end
 
 end
