@@ -11,14 +11,14 @@ let mc_key =
     let c = Condition.create () in
     {mutex=m; condition=c})
 
-type waiting_notified =
+type waiting_released =
   | Waiting
-  | Notified
+  | Released
 
 type 'a t = {
   mask: int;
   channels: 'a Chan.t array;
-  waiters: (waiting_notified ref * mutex_condvar ) Chan.t;
+  waiters: (waiting_released ref * mutex_condvar ) Chan.t;
 }
 
 let rec log2 n =
@@ -33,15 +33,25 @@ let make n =
     waiters = Chan.make_unbounded ()
     }
 
-let check_waiters mchan =
+let rec check_waiters mchan =
   match Chan.recv_poll mchan.waiters with
     | None -> ()
     | Some (status, mc) ->
       begin
-        status := Notified;
         Mutex.lock mc.mutex;
-        Mutex.unlock mc.mutex;
-        Condition.broadcast mc.condition;
+        match !status with
+        | Waiting ->
+          begin
+            status := Released;
+            Mutex.unlock mc.mutex;
+            Condition.broadcast mc.condition
+          end
+        | Released ->
+          begin
+            (* this waiter is already released, it might have found something on a poll *)
+            Mutex.unlock mc.mutex;
+            check_waiters mchan
+          end
       end
 
 let send mchan v =
@@ -66,7 +76,7 @@ let rec recv mchan =
     | Some v -> v
     | None ->
       begin
-        (* Didn't find any thing, prepare to block:
+        (* Didn't find anything, prepare to block:
          *  - enqueue our wait block in the waiter queue
          *  - check the queue again
          *  - go to sleep if our wait block has not been notified
@@ -76,14 +86,28 @@ let rec recv mchan =
         let mc = Domain.DLS.get mc_key in
         Chan.send mchan.waiters (status, mc);
         match recv_poll mchan with
-          | Some v -> v
-          | None ->
+          | Some v ->
             begin
+              (* need to check the status as might take an item
+                which is not the one an existing sender has woken us
+                to take *)
+              Mutex.lock mc.mutex;
+              begin match !status with
+              | Waiting -> (status := Released; Mutex.unlock mc.mutex)
+              | Released ->
+                (* we were simultaneously released from a sender;
+                  so need to release a waiter *)
+                (Mutex.unlock mc.mutex; check_waiters mchan)
+              end;
+              v
+            end
+          | None ->
+            if !status = Waiting then begin
                Mutex.lock mc.mutex;
                while !status = Waiting do
                  Condition.wait mc.condition mc.mutex
                done;
-               Mutex.unlock mc.mutex;
-               recv mchan
-            end
+               Mutex.unlock mc.mutex
+            end;
+            recv mchan
       end
