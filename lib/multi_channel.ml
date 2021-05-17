@@ -48,27 +48,6 @@ let make ?(recv_block_spins = 1024) n =
     recv_block_spins;
     }
 
-let rec check_waiters mchan =
-  match Chan.recv_poll mchan.waiters with
-    | None -> ()
-    | Some (status, mc) ->
-      begin
-        Mutex.lock mc.mutex;
-        match !status with
-        | Waiting ->
-          begin
-            status := Released;
-            Mutex.unlock mc.mutex;
-            Condition.broadcast mc.condition
-          end
-        | Released ->
-          begin
-            (* this waiter is already released, it might have found something on a poll *)
-            Mutex.unlock mc.mutex;
-            check_waiters mchan
-          end
-      end
-
 let register_domain mchan =
   let id = Atomic.fetch_and_add mchan.next_domain_id 1 in
   assert(id < Array.length mchan.channels);
@@ -87,9 +66,32 @@ let get_id_key mchan =
 let clear_id_key () =
   (Domain.DLS.get dls_key).id <- (-1)
 
+let rec check_waiters mchan =
+  match Chan.recv_poll mchan.waiters with
+    | None -> ()
+    | Some (status, mc) ->
+      (* avoid the lock if we possibly can *)
+      if !status = Released then check_waiters mchan
+      else begin
+        Mutex.lock mc.mutex;
+        match !status with
+        | Waiting ->
+          begin
+            status := Released;
+            Mutex.unlock mc.mutex;
+            Condition.broadcast mc.condition
+          end
+        | Released ->
+          begin
+            (* this waiter is already released, it might have found something on a poll *)
+            Mutex.unlock mc.mutex;
+            check_waiters mchan
+          end
+      end
+
 let send mchan v =
   let id = (get_id_key mchan) in
-  let res = Ws_deque.push mchan.channels.(id) v in
+  let res = Ws_deque.push (Array.unsafe_get mchan.channels id) v in
   check_waiters mchan;
   res
 
@@ -99,17 +101,21 @@ let rec recv_poll_loop mchan dls cur_offset =
   if k = 0 then None
   else begin
     let idx = cur_offset + (Random.State.int dls.rng_state k) in
-    let t = offsets.(idx) in
-    offsets.(idx) <- offsets.(cur_offset);
-    offsets.(cur_offset) <- t;
-    match Ws_deque.steal mchan.channels.(Int.logand (dls.id + t) mchan.mask) with
+    let t = Array.unsafe_get offsets idx in
+    let channel = Array.unsafe_get mchan.channels (Int.logand (dls.id + t) mchan.mask) in
+    match Ws_deque.steal channel with
       | Some _ as v -> v
-      | None -> recv_poll_loop mchan dls (cur_offset+1)
+      | None ->
+        begin
+          Array.unsafe_set offsets idx (Array.unsafe_get offsets cur_offset);
+          Array.unsafe_set offsets cur_offset t;
+          recv_poll_loop mchan dls (cur_offset+1)
+        end
   end
 
 let recv_poll mchan =
   let id = (get_id_key mchan) in
-  match Ws_deque.pop mchan.channels.(id) with
+  match Ws_deque.pop (Array.unsafe_get mchan.channels id) with
     | Some _ as v -> v
     | None -> recv_poll_loop mchan (Domain.DLS.get dls_key) 0
 

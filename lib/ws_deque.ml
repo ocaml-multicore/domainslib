@@ -58,9 +58,11 @@ module CArray = struct
 
   let size t = Array.length t.arr [@@inline]
 
-  let get t i = Atomic.get t.arr.(Int.logand i t.mask) [@@inline]
+  let get t i =
+    Atomic.get (Array.unsafe_get t.arr (Int.logand i t.mask)) [@@inline]
 
-  let put t i v = Atomic.set t.arr.(Int.logand i t.mask) v [@@inline]
+  let put t i v =
+    Atomic.set (Array.unsafe_get t.arr (Int.logand i t.mask)) v [@@inline]
 
   let grow t top bottom =
     let s = size t in
@@ -83,7 +85,7 @@ module CArray = struct
 end
 
 module M : S = struct
-  let min_size = 16
+  let min_size = 32
   let shrink_const = 3
 
   type 'a t = {
