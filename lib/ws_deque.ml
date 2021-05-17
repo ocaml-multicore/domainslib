@@ -147,11 +147,11 @@ module M : S = struct
       Atomic.set q.bottom (b + 1);
       None
     end else
-      let out = Some (CArray.get a b) in
+      let out = CArray.get a b in
       if b = t then begin
         (* single last element *)
         if (Atomic.compare_and_set q.top t (t + 1)) then
-          (Atomic.set q.bottom (b + 1); out)
+          (Atomic.set q.bottom (b + 1); Some out)
         else
           (Atomic.set q.bottom (b + 1); None)
       end else begin
@@ -160,7 +160,7 @@ module M : S = struct
           Atomic.set q.tab (CArray.shrink a t b);
           set_next_shrink q
         end;
-        out
+        Some out
       end
 
   let steal q =
@@ -172,9 +172,9 @@ module M : S = struct
       if size <= 0 then
         None
       else
-        let out = Some (CArray.get a t) in
+        let out = CArray.get a t in
         if Atomic.compare_and_set q.top t (t + 1) then
-          out
+          Some out
         else begin
           Domain.Sync.cpu_relax ();
           loop ()
