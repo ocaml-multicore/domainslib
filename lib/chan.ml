@@ -36,99 +36,96 @@ let make_unbounded () =
 (* [send'] is shared by both the blocking and polling versions. Returns a
  * boolean indicating whether the send was successful. Hence, it always returns
  * [true] if [polling] is [false]. *)
-let send' {buffer_size; contents} v ~polling =
+let rec send' {buffer_size; contents} v ~polling =
   let open Fun_queue in
-  let rec loop () =
-    let old_contents = Atomic.get contents in
-    match old_contents with
-    | Empty {receivers} -> begin
-      (* The channel is empty (no senders) *)
-      match pop receivers with
-      | None ->
-          (* The channel is empty (no senders) and no waiting receivers *)
-          if buffer_size = Some 0 then
-            (* The channel is empty (no senders), no waiting receivers, and
-              * buffer size is 0 *)
-            begin if not polling then begin
-              (* The channel is empty (no senders), no waiting receivers,
-                * buffer size is 0 and we're not polling *)
-              let mc = Domain.DLS.get mutex_condvar_key in
-              let cond_slot = ref Waiting in
-              let new_contents =
-                NotEmpty
-                  {messages= empty; senders= push empty (v, cond_slot, mc)}
-              in
-              if Atomic.compare_and_set contents old_contents new_contents
-              then begin
-                Mutex.lock mc.mutex;
-                while !cond_slot = Waiting do
-                  Condition.wait mc.condition mc.mutex
-                done;
-                Mutex.unlock mc.mutex;
-                true
-              end else loop ()
-            end else
-              (* The channel is empty (no senders), no waiting receivers,
-                * buffer size is 0 and we're polling *)
-              false
-            end
-          else
-            (* The channel is empty (no senders), no waiting receivers, and
-              * the buffer size is non-zero *)
+  let old_contents = Atomic.get contents in
+  match old_contents with
+  | Empty {receivers} -> begin
+    (* The channel is empty (no senders) *)
+    match pop receivers with
+    | None ->
+        (* The channel is empty (no senders) and no waiting receivers *)
+        if buffer_size = Some 0 then
+          (* The channel is empty (no senders), no waiting receivers, and
+            * buffer size is 0 *)
+          begin if not polling then begin
+            (* The channel is empty (no senders), no waiting receivers,
+              * buffer size is 0 and we're not polling *)
+            let mc = Domain.DLS.get mutex_condvar_key in
+            let cond_slot = ref Waiting in
             let new_contents =
-              NotEmpty {messages= push empty v; senders= empty}
+              NotEmpty
+                {messages= empty; senders= push empty (v, cond_slot, mc)}
             in
             if Atomic.compare_and_set contents old_contents new_contents
-            then true
-            else loop ()
-      | Some ((r, mc), receivers') ->
-          (* The channel is empty (no senders) and there are waiting receivers
-           * *)
-          let new_contents = Empty {receivers= receivers'} in
-          if Atomic.compare_and_set contents old_contents new_contents
-          then begin
-            r := Some v;
-            Mutex.lock mc.mutex;
-            Mutex.unlock mc.mutex;
-            Condition.broadcast mc.condition;
-            true
-           end else loop ()
-    end
-    | NotEmpty {senders; messages} ->
-        (* The channel is not empty *)
-        if buffer_size = Some (length messages) then
-          (* The channel is not empty, and the buffer is full *)
-          begin if not polling then
-            (* The channel is not empty, the buffer is full and we're not
-              * polling *)
-            let cond_slot = ref Waiting in
-            let mc = Domain.DLS.get mutex_condvar_key in
-            let new_contents =
-              NotEmpty {senders= push senders (v, cond_slot, mc); messages}
-            in
-            if Atomic.compare_and_set contents old_contents new_contents then begin
+            then begin
               Mutex.lock mc.mutex;
               while !cond_slot = Waiting do
-                Condition.wait mc.condition mc.mutex;
+                Condition.wait mc.condition mc.mutex
               done;
               Mutex.unlock mc.mutex;
               true
-            end else loop ()
-          else
-            (* The channel is not empty, the buffer is full and we're
-              * polling *)
+            end else send' {buffer_size; contents} v ~polling
+          end else
+            (* The channel is empty (no senders), no waiting receivers,
+              * buffer size is 0 and we're polling *)
             false
           end
         else
-          (* The channel is not empty, and the buffer is not full *)
+          (* The channel is empty (no senders), no waiting receivers, and
+            * the buffer size is non-zero *)
           let new_contents =
-            NotEmpty {messages= push messages v; senders}
+            NotEmpty {messages= push empty v; senders= empty}
           in
           if Atomic.compare_and_set contents old_contents new_contents
           then true
-          else loop ()
-  in
-  loop ()
+          else send' {buffer_size; contents} v ~polling
+    | Some ((r, mc), receivers') ->
+        (* The channel is empty (no senders) and there are waiting receivers
+         * *)
+        let new_contents = Empty {receivers= receivers'} in
+        if Atomic.compare_and_set contents old_contents new_contents
+        then begin
+          r := Some v;
+          Mutex.lock mc.mutex;
+          Mutex.unlock mc.mutex;
+          Condition.broadcast mc.condition;
+          true
+         end else send' {buffer_size; contents} v ~polling
+  end
+  | NotEmpty {senders; messages} ->
+      (* The channel is not empty *)
+      if buffer_size = Some (length messages) then
+        (* The channel is not empty, and the buffer is full *)
+        begin if not polling then
+          (* The channel is not empty, the buffer is full and we're not
+            * polling *)
+          let cond_slot = ref Waiting in
+          let mc = Domain.DLS.get mutex_condvar_key in
+          let new_contents =
+            NotEmpty {senders= push senders (v, cond_slot, mc); messages}
+          in
+          if Atomic.compare_and_set contents old_contents new_contents then begin
+            Mutex.lock mc.mutex;
+            while !cond_slot = Waiting do
+              Condition.wait mc.condition mc.mutex;
+            done;
+            Mutex.unlock mc.mutex;
+            true
+          end else send' {buffer_size; contents} v ~polling
+        else
+          (* The channel is not empty, the buffer is full and we're
+            * polling *)
+          false
+        end
+      else
+        (* The channel is not empty, and the buffer is not full *)
+        let new_contents =
+          NotEmpty {messages= push messages v; senders}
+        in
+        if Atomic.compare_and_set contents old_contents new_contents
+        then true
+        else send' {buffer_size; contents} v ~polling
 
 let send c v =
   let r = send' c v ~polling:false in
@@ -139,85 +136,82 @@ let send_poll c v = send' c v ~polling:true
 (* [recv'] is shared by both the blocking and polling versions. Returns a an
  * optional value indicating whether the receive was successful. Hence, it
  * always returns [Some v] if [polling] is [false]. *)
-let recv' {buffer_size; contents} ~polling =
+let rec recv' {buffer_size; contents} ~polling =
   let open Fun_queue in
-  let rec loop () =
-    let old_contents = Atomic.get contents in
-    match old_contents with
-    | Empty {receivers} ->
-        (* The channel is empty (no senders) *)
-        if not polling then begin
-          (* The channel is empty (no senders), and we're not polling *)
-          let msg_slot = ref None in
-          let mc = Domain.DLS.get mutex_condvar_key in
+  let old_contents = Atomic.get contents in
+  match old_contents with
+  | Empty {receivers} ->
+      (* The channel is empty (no senders) *)
+      if not polling then begin
+        (* The channel is empty (no senders), and we're not polling *)
+        let msg_slot = ref None in
+        let mc = Domain.DLS.get mutex_condvar_key in
+        let new_contents =
+          Empty {receivers= push receivers (msg_slot, mc)}
+        in
+        if Atomic.compare_and_set contents old_contents new_contents then
+        begin
+          Mutex.lock mc.mutex;
+          while !msg_slot = None do
+            Condition.wait mc.condition mc.mutex;
+          done;
+          Mutex.unlock mc.mutex;
+          !msg_slot
+        end else recv' {buffer_size; contents} ~polling
+      end else
+        (* The channel is empty (no senders), and we're polling *)
+        None
+  | NotEmpty {senders; messages} ->
+      (* The channel is not empty *)
+      match (pop messages, pop senders) with
+      | None, None ->
+          (* The channel is not empty, but no senders or messages *)
+          failwith "Chan.recv: Impossible - channel state"
+      | Some (m, messages'), None ->
+          (* The channel is not empty, there is a message and no
+            * waiting senders *)
           let new_contents =
-            Empty {receivers= push receivers (msg_slot, mc)}
+            if length messages' = 0 then
+              Empty {receivers = empty}
+            else
+              NotEmpty {messages= messages'; senders}
           in
-          if Atomic.compare_and_set contents old_contents new_contents then
-          begin
+          if Atomic.compare_and_set contents old_contents new_contents
+          then Some m
+          else recv' {buffer_size; contents} ~polling
+      | None, Some ((m, c, mc), senders') ->
+          (* The channel is not empty, there are no messages, and there
+            * is a waiting sender. This is only possible is the buffer
+            * size is 0. *)
+          assert (buffer_size = Some 0) ;
+          let new_contents =
+            if length senders' = 0 then
+              Empty {receivers = empty}
+            else
+              NotEmpty {messages; senders= senders'}
+          in
+          if Atomic.compare_and_set contents old_contents new_contents
+          then begin
+            c := Notified;
             Mutex.lock mc.mutex;
-            while !msg_slot = None do
-              Condition.wait mc.condition mc.mutex;
-            done;
             Mutex.unlock mc.mutex;
-            !msg_slot
-          end else loop ()
-        end else
-          (* The channel is empty (no senders), and we're polling *)
-          None
-    | NotEmpty {senders; messages} ->
-        (* The channel is not empty *)
-        match (pop messages, pop senders) with
-        | None, None ->
-            (* The channel is not empty, but no senders or messages *)
-            failwith "Chan.recv: Impossible - channel state"
-        | Some (m, messages'), None ->
-            (* The channel is not empty, there is a message and no
-              * waiting senders *)
-            let new_contents =
-              if length messages' = 0 then
-                Empty {receivers = empty}
-              else
-                NotEmpty {messages= messages'; senders}
-            in
-            if Atomic.compare_and_set contents old_contents new_contents
-            then Some m
-            else loop ()
-        | None, Some ((m, c, mc), senders') ->
-            (* The channel is not empty, there are no messages, and there
-              * is a waiting sender. This is only possible is the buffer
-              * size is 0. *)
-            assert (buffer_size = Some 0) ;
-            let new_contents =
-              if length senders' = 0 then
-                Empty {receivers = empty}
-              else
-                NotEmpty {messages; senders= senders'}
-            in
-            if Atomic.compare_and_set contents old_contents new_contents
-            then begin
-              c := Notified;
-              Mutex.lock mc.mutex;
-              Mutex.unlock mc.mutex;
-              Condition.broadcast mc.condition;
-              Some m
-            end else loop ()
-        | Some (m, messages'), Some ((ms, sc, mc), senders') ->
-            (* The channel is not empty, there is a message, and there is a
-              * waiting sender. *)
-            let new_contents =
-              NotEmpty {messages= push messages' ms; senders= senders'}
-            in
-            if Atomic.compare_and_set contents old_contents new_contents
-            then begin
-              sc := Notified;
-              Mutex.lock mc.mutex;
-              Mutex.unlock mc.mutex;
-              Condition.broadcast mc.condition;
-              Some m
-            end else loop ()
-  in
-  loop ()
+            Condition.broadcast mc.condition;
+            Some m
+          end else recv' {buffer_size; contents} ~polling
+      | Some (m, messages'), Some ((ms, sc, mc), senders') ->
+          (* The channel is not empty, there is a message, and there is a
+            * waiting sender. *)
+          let new_contents =
+            NotEmpty {messages= push messages' ms; senders= senders'}
+          in
+          if Atomic.compare_and_set contents old_contents new_contents
+          then begin
+            sc := Notified;
+            Mutex.lock mc.mutex;
+            Mutex.unlock mc.mutex;
+            Condition.broadcast mc.condition;
+            Some m
+          end else recv' {buffer_size; contents} ~polling
 
 let recv c =
   match recv' c ~polling:false with
