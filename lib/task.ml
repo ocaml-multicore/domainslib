@@ -26,7 +26,7 @@ let setup_pool ~num_domains =
   let task_chan = Multi_channel.make (num_domains+1) in
   let rec worker () =
     match Multi_channel.recv task_chan with
-    | Quit -> Multi_channel.clear_id_key ();
+    | Quit -> Multi_channel.clear_local_state ();
     | Task (t, p) ->
         do_task t p;
         worker ()
@@ -55,7 +55,7 @@ let teardown_pool pool =
   for _i=1 to Array.length pool.domains do
     Multi_channel.send pool.task_chan Quit
   done;
-  Multi_channel.clear_id_key ();
+  Multi_channel.clear_local_state ();
   Array.iter Domain.join pool.domains
 
 let parallel_for_reduce ?(chunk_size=0) ~start ~finish ~body pool reduce_fun init =
