@@ -6,11 +6,19 @@ type mutex_condvar = {
   condition: Condition.t
 }
 
-let mc_key =
+type dls_state = {
+  mc: mutex_condvar;
+  mutable id: int;
+}
+
+let dls_key =
   Domain.DLS.new_key (fun () ->
     let m = Mutex.create () in
     let c = Condition.create () in
-    {mutex=m; condition=c})
+    {
+      mc = {mutex=m; condition=c};
+      id = -1
+    })
 
 type waiting_released =
   | Waiting
@@ -23,9 +31,6 @@ type 'a t = {
   next_domain_id: int Atomic.t;
   recv_block_spins: int;
 }
-
-let id_key =
-  Domain.DLS.new_key (fun () -> (-1))
 
 let rec log2 n =
   if n <= 1 then 0 else 1 + (log2 (n asr 1))
@@ -68,16 +73,16 @@ let register_domain mchan =
   id
 
 let get_id_key mchan =
-  let id = Domain.DLS.get id_key in
-  if id >= 0 then id
+  let dls_state = Domain.DLS.get dls_key in
+  if dls_state.id >= 0 then dls_state.id
   else begin
     let id = (register_domain mchan) in
-    Domain.DLS.set id_key id;
-    id
+    dls_state.id <- id;
+    dls_state.id
   end
 
 let clear_id_key () =
-  Domain.DLS.set id_key (-1)
+  (Domain.DLS.get dls_key).id <- (-1)
 
 let send mchan v =
   let id = (get_id_key mchan) in
@@ -122,7 +127,7 @@ let rec recv mchan =
          *  - when notified retry the recieve
          *)
         let status = ref Waiting in
-        let mc = Domain.DLS.get mc_key in
+        let mc = (Domain.DLS.get dls_key).mc in
         Chan.send mchan.waiters (status, mc);
         match recv_poll mchan with
           | Some v ->
