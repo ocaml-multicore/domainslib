@@ -170,11 +170,11 @@ module M : S = struct
   let rec steal q =
     let t = Atomic.get q.top in
     let b = Atomic.get q.bottom in
-    let a = Atomic.get q.tab in
     let size = b - t in
     if size <= 0 then
       None
     else
+      let a = Atomic.get q.tab in
       let out = CArray.get a t in
       if Atomic.compare_and_set q.top t (t + 1) then
         Some out
