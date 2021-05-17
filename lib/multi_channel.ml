@@ -1,4 +1,5 @@
 
+module Ws_deque = Ws_deque.M
 
 type mutex_condvar = {
   mutex: Mutex.t;
@@ -17,20 +18,25 @@ type waiting_released =
 
 type 'a t = {
   mask: int;
-  channels: 'a Chan.t array;
+  channels: 'a Ws_deque.t array;
   waiters: (waiting_released ref * mutex_condvar ) Chan.t;
+  next_domain_id: int Atomic.t;
 }
+
+let id_key =
+  Domain.DLS.new_key (fun () -> (-1))
 
 let rec log2 n =
   if n <= 1 then 0 else 1 + (log2 (n asr 1))
 
 let make n =
-  let sz = Int.shift_left 1 ((log2 n)+1) in
-  assert ((sz > n) && (sz > 0));
-  assert (Int.logand sz (sz -1) == 0);
+  let sz = Int.shift_left 1 (log2 n) in
+  assert ((sz >= n) && (sz > 0));
+  assert (Int.logand sz (sz-1) == 0);
   { mask = sz - 1;
-    channels = Array.init sz (fun _ -> Chan.make_unbounded ());
-    waiters = Chan.make_unbounded ()
+    channels = Array.init sz (fun _ -> Ws_deque.create ());
+    waiters = Chan.make_unbounded ();
+    next_domain_id = Atomic.make 0
     }
 
 let rec check_waiters mchan =
@@ -54,22 +60,43 @@ let rec check_waiters mchan =
           end
       end
 
+let register_domain mchan =
+  let id = Atomic.fetch_and_add mchan.next_domain_id 1 in
+  assert(id < Array.length mchan.channels);
+  id
+
+let get_id_key mchan =
+  let id = Domain.DLS.get id_key in
+  if id >= 0 then id
+  else begin
+    let id = (register_domain mchan) in
+    Domain.DLS.set id_key id;
+    id
+  end
+
+let clear_id_key () =
+  Domain.DLS.set id_key (-1)
+
 let send mchan v =
-  let id = (Domain.self () :> int) in
-  let res = Chan.send mchan.channels.(Int.logand id mchan.mask) v in
+  let id = (get_id_key mchan) in
+  let res = Ws_deque.push mchan.channels.(id) v in
   check_waiters mchan;
   res
 
 let rec recv_poll_loop mchan cur left =
   if left = 0 then None
   else begin
-    match Chan.recv_poll mchan.channels.(Int.logand cur mchan.mask) with
+    match Ws_deque.steal mchan.channels.(Int.logand cur mchan.mask) with
       | Some _ as v -> v
       | None -> recv_poll_loop mchan (cur+1) (left-1)
   end
 
 let recv_poll mchan =
-  recv_poll_loop mchan (Domain.self () :> int) (Array.length mchan.channels)
+  let id = (get_id_key mchan) in
+  match Ws_deque.pop mchan.channels.(id) with
+    | Some _ as v -> v
+    | None ->
+      recv_poll_loop mchan (id + 1) ((Array.length mchan.channels) - 1)
 
 let rec recv mchan =
   match recv_poll mchan with
