@@ -71,10 +71,10 @@ let clear_local_state () =
   dls_state.id <- (-1)
 
 let rec check_waiters mchan =
+  Domain.Sync.poll (); (* need to make sure we have a safepoint in here *)
   match Chan.recv_poll mchan.waiters with
     | None -> ()
     | Some (status, mc) ->
-      Domain.Sync.poll (); (* need to make sure we have a safepoint in here *)
       (* avoid the lock if we possibly can *)
       if !status = Released then check_waiters mchan
       else begin
@@ -96,11 +96,11 @@ let rec check_waiters mchan =
 
 let send mchan v =
   let id = (get_local_id mchan) in
-  let res = Ws_deque.push (Array.unsafe_get mchan.channels id) v in
-  check_waiters mchan;
-  res
+  Ws_deque.push (Array.unsafe_get mchan.channels id) v;
+  check_waiters mchan
 
 let rec recv_poll_loop mchan dls cur_offset =
+  Domain.Sync.poll (); (* need to make sure we have a safepoint in here *)
   let offsets = dls.steal_offsets in
   let k = (Array.length offsets) - cur_offset in
   if k = 0 then None
@@ -119,6 +119,7 @@ let rec recv_poll_loop mchan dls cur_offset =
   end
 
 let recv_poll mchan =
+  Domain.Sync.poll (); (* need to make sure we have a safepoint in here *)
   let id = (get_local_id mchan) in
   match Ws_deque.pop (Array.unsafe_get mchan.channels id) with
     | Some _ as v -> v
