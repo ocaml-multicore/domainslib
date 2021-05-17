@@ -6,6 +6,18 @@ type mutex_condvar = {
   condition: Condition.t
 }
 
+type waiting_status =
+  | Waiting
+  | Released
+
+type 'a t = {
+  mask: int;
+  channels: 'a Ws_deque.t array;
+  waiters: (waiting_status ref * mutex_condvar ) Chan.t;
+  next_domain_id: int Atomic.t;
+  recv_block_spins: int;
+}
+
 type dls_state = {
   mutable id: int;
   mutable steal_offsets: int array;
@@ -22,23 +34,11 @@ let dls_key =
       mc = {mutex=Mutex.create (); condition=Condition.create ()};
     })
 
-type waiting_released =
-  | Waiting
-  | Released
-
-type 'a t = {
-  mask: int;
-  channels: 'a Ws_deque.t array;
-  waiters: (waiting_released ref * mutex_condvar ) Chan.t;
-  next_domain_id: int Atomic.t;
-  recv_block_spins: int;
-}
-
 let rec log2 n =
   if n <= 1 then 0 else 1 + (log2 (n asr 1))
 
-let make ?(recv_block_spins = 1024) n =
-  let sz = Int.shift_left 1 (log2 n) in
+let make ?(recv_block_spins = 2048) n =
+  let sz = Int.shift_left 1 ((log2 (n-1))+1) in
   assert ((sz >= n) && (sz > 0));
   assert (Int.logand sz (sz-1) == 0);
   { mask = sz - 1;
@@ -53,23 +53,28 @@ let register_domain mchan =
   assert(id < Array.length mchan.channels);
   id
 
-let get_id_key mchan =
+let init_domain_state mchan dls_state =
+  let id = (register_domain mchan) in
+  dls_state.id <- id;
+  dls_state.steal_offsets <- Array.init ((Array.length mchan.channels)-1) (fun i -> i+1);
+  dls_state
+  [@@inline never]
+
+let get_local_id mchan =
   let dls_state = Domain.DLS.get dls_key in
   if dls_state.id >= 0 then dls_state.id
-  else begin
-    let id = (register_domain mchan) in
-    dls_state.id <- id;
-    dls_state.steal_offsets <- Array.init ((Array.length mchan.channels)-1) (fun i -> i+1);
-    dls_state.id
-  end
+  else (init_domain_state mchan dls_state).id
+  [@@inline]
 
-let clear_id_key () =
-  (Domain.DLS.get dls_key).id <- (-1)
+let clear_local_state () =
+  let dls_state = Domain.DLS.get dls_key in
+  dls_state.id <- (-1)
 
 let rec check_waiters mchan =
   match Chan.recv_poll mchan.waiters with
     | None -> ()
     | Some (status, mc) ->
+      Domain.Sync.poll (); (* need to make sure we have a safepoint in here *)
       (* avoid the lock if we possibly can *)
       if !status = Released then check_waiters mchan
       else begin
@@ -90,7 +95,7 @@ let rec check_waiters mchan =
       end
 
 let send mchan v =
-  let id = (get_id_key mchan) in
+  let id = (get_local_id mchan) in
   let res = Ws_deque.push (Array.unsafe_get mchan.channels id) v in
   check_waiters mchan;
   res
@@ -114,7 +119,7 @@ let rec recv_poll_loop mchan dls cur_offset =
   end
 
 let recv_poll mchan =
-  let id = (get_id_key mchan) in
+  let id = (get_local_id mchan) in
   match Ws_deque.pop (Array.unsafe_get mchan.channels id) with
     | Some _ as v -> v
     | None -> recv_poll_loop mchan (Domain.DLS.get dls_key) 0
