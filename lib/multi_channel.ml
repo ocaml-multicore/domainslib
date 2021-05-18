@@ -37,7 +37,7 @@ let dls_key =
 let rec log2 n =
   if n <= 1 then 0 else 1 + (log2 (n asr 1))
 
-let make ?(recv_block_spins = 2048) n =
+let make ?(recv_block_spins = -1) n =
   let sz = Int.shift_left 1 ((log2 (n-1))+1) in
   assert ((sz >= n) && (sz > 0));
   assert (Int.logand sz (sz-1) == 0);
@@ -131,8 +131,11 @@ let rec recv_poll_repeated mchan repeats =
     | None ->
       if repeats = 1 then None
       else begin
+        let next_repeats =
+          if repeats < 0 then -1 else repeats - 1
+        in
         Domain.Sync.cpu_relax ();
-        recv_poll_repeated mchan (repeats - 1)
+        recv_poll_repeated mchan next_repeats
       end
 
 let rec recv mchan =
