@@ -38,7 +38,7 @@ let rec log2 n =
   if n <= 1 then 0 else 1 + (log2 (n asr 1))
 
 let make ?(recv_block_spins = 2048) n =
-  let sz = Int.shift_left 1 (log2 n) in
+  let sz = Int.shift_left 1 ((log2 (n-1))+1) in
   assert ((sz >= n) && (sz > 0));
   assert (Int.logand sz (sz-1) == 0);
   { mask = sz - 1;
