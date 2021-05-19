@@ -1,4 +1,4 @@
-let n = try int_of_string Sys.argv.(1) with _ -> 40
+let n = try int_of_string Sys.argv.(1) with _ -> 43
 
 let rec fib n =
   if n < 2 then 1
