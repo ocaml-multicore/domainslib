@@ -40,7 +40,7 @@ end
 module CArray = struct
 
   type 'a t = {
-    arr  : 'a Atomic.t array;
+    arr  : 'a array;
     mask : int
     }
 
@@ -52,17 +52,17 @@ module CArray = struct
     assert ((sz >= n) && (sz > 0));
     assert (Int.logand sz (sz-1) == 0);
     {
-      arr  = Array.init sz (fun _ -> Atomic.make v);
+      arr  = Array.init sz (fun _ -> v);
       mask = sz - 1
     }
 
   let size t = Array.length t.arr [@@inline]
 
   let get t i =
-    Atomic.get (Array.unsafe_get t.arr (Int.logand i t.mask)) [@@inline]
+    Array.unsafe_get t.arr (Int.logand i t.mask) [@@inline]
 
   let put t i v =
-    Atomic.set (Array.unsafe_get t.arr (Int.logand i t.mask)) v [@@inline]
+    Array.unsafe_set t.arr (Int.logand i t.mask) v [@@inline]
 
   let grow t top bottom =
     let s = size t in
@@ -96,10 +96,10 @@ module M : S = struct
   }
 
   let create () = {
-    top = Atomic.make 0;
-    bottom = Atomic.make 0;
+    top = Atomic.make 1;
+    bottom = Atomic.make 1;
     tab = Atomic.make (CArray.create min_size (Obj.magic ()));
-    next_shrink = min_size / shrink_const
+    next_shrink = 0
   }
 
   let set_next_shrink q =
