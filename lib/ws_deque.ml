@@ -33,8 +33,8 @@ module type S = sig
   val is_empty : 'a t -> bool
   val size : 'a t -> int
   val push : 'a t -> 'a -> unit
-  val pop : 'a t -> 'a option
-  val steal : 'a t -> 'a option
+  val pop : 'a t -> 'a
+  val steal : 'a t -> 'a
 end
 
 module CArray = struct
@@ -138,7 +138,7 @@ module M : S = struct
     Atomic.set q.bottom (b + 1)
 
   let pop q =
-    if size q = 0 then None
+    if size q = 0 then raise Exit
     else begin
       let b = (Atomic.get q.bottom) - 1 in
       Atomic.set q.bottom b;
@@ -148,22 +148,22 @@ module M : S = struct
       if size < 0 then begin
         (* empty queue *)
         Atomic.set q.bottom (b + 1);
-        None
+        raise Exit
       end else
         let out = CArray.get a b in
         if b = t then begin
           (* single last element *)
           if (Atomic.compare_and_set q.top t (t + 1)) then
-            (Atomic.set q.bottom (b + 1); Some out)
+            (Atomic.set q.bottom (b + 1); out)
           else
-            (Atomic.set q.bottom (b + 1); None)
+            (Atomic.set q.bottom (b + 1); raise Exit)
         end else begin
           (* non-empty queue *)
           if q.next_shrink > size then begin
             Atomic.set q.tab (CArray.shrink a t b);
             set_next_shrink q
           end;
-          Some out
+          out
         end
     end
 
@@ -172,12 +172,12 @@ module M : S = struct
     let b = Atomic.get q.bottom in
     let size = b - t in
     if size <= 0 then
-      None
+      raise Exit
     else
       let a = Atomic.get q.tab in
       let out = CArray.get a t in
       if Atomic.compare_and_set q.top t (t + 1) then
-        Some out
+        out
       else begin
         Domain.Sync.cpu_relax ();
         steal q

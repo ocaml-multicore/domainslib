@@ -103,14 +103,15 @@ let rec recv_poll_loop mchan dls cur_offset =
   Domain.Sync.poll (); (* need to make sure we have a safepoint in here *)
   let offsets = dls.steal_offsets in
   let k = (Array.length offsets) - cur_offset in
-  if k = 0 then None
+  if k = 0 then raise Exit
   else begin
     let idx = cur_offset + (Random.State.int dls.rng_state k) in
     let t = Array.unsafe_get offsets idx in
     let channel = Array.unsafe_get mchan.channels (Int.logand (dls.id + t) mchan.mask) in
-    match Ws_deque.steal channel with
-      | Some _ as v -> v
-      | None ->
+    try
+      Ws_deque.steal channel
+    with
+      | Exit ->
         begin
           Array.unsafe_set offsets idx (Array.unsafe_get offsets cur_offset);
           Array.unsafe_set offsets cur_offset t;
@@ -121,24 +122,27 @@ let rec recv_poll_loop mchan dls cur_offset =
 let recv_poll mchan =
   Domain.Sync.poll (); (* need to make sure we have a safepoint in here *)
   let id = (get_local_id mchan) in
-  match Ws_deque.pop (Array.unsafe_get mchan.channels id) with
-    | Some _ as v -> v
-    | None -> recv_poll_loop mchan (Domain.DLS.get dls_key) 0
+  try
+    Ws_deque.pop (Array.unsafe_get mchan.channels id)
+  with
+    | Exit -> recv_poll_loop mchan (Domain.DLS.get dls_key) 0
 
 let rec recv_poll_repeated mchan repeats =
-  match recv_poll mchan with
-    | Some _ as v -> v
-    | None ->
-      if repeats = 1 then None
+  try
+    recv_poll mchan
+  with
+    | Exit ->
+      if repeats = 1 then raise Exit
       else begin
         Domain.Sync.cpu_relax ();
         recv_poll_repeated mchan (repeats - 1)
       end
 
 let rec recv mchan =
-  match recv_poll_repeated mchan mchan.recv_block_spins with
-    | Some v -> v
-    | None ->
+  try
+    recv_poll_repeated mchan mchan.recv_block_spins
+  with
+    Exit ->
       begin
         (* Didn't find anything, prepare to block:
          *  - enqueue our wait block in the waiter queue
@@ -149,23 +153,22 @@ let rec recv mchan =
         let status = ref Waiting in
         let mc = (Domain.DLS.get dls_key).mc in
         Chan.send mchan.waiters (status, mc);
-        match recv_poll mchan with
-          | Some v ->
-            begin
-              (* need to check the status as might take an item
-                which is not the one an existing sender has woken us
-                to take *)
-              Mutex.lock mc.mutex;
-              begin match !status with
-              | Waiting -> (status := Released; Mutex.unlock mc.mutex)
-              | Released ->
-                (* we were simultaneously released from a sender;
-                  so need to release a waiter *)
-                (Mutex.unlock mc.mutex; check_waiters mchan)
-              end;
-              v
-            end
-          | None ->
+        try
+          let v = recv_poll mchan in
+          (* need to check the status as might take an item
+            which is not the one an existing sender has woken us
+            to take *)
+          Mutex.lock mc.mutex;
+          begin match !status with
+          | Waiting -> (status := Released; Mutex.unlock mc.mutex)
+          | Released ->
+            (* we were simultaneously released from a sender;
+              so need to release a waiter *)
+            (Mutex.unlock mc.mutex; check_waiters mchan)
+          end;
+          v
+        with
+          | Exit ->
             if !status = Waiting then begin
                Mutex.lock mc.mutex;
                while !status = Waiting do
