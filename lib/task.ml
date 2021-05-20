@@ -42,10 +42,13 @@ let async pool task =
 let rec await pool promise =
   match Atomic.get promise with
   | None ->
-      begin match Multi_channel.recv_poll pool.task_chan with
-      | None -> Domain.Sync.cpu_relax ()
-      | Some (Task (t, p)) -> do_task t p
-      | Some Quit -> raise TasksActive
+      begin
+        try
+          match Multi_channel.recv_poll pool.task_chan with
+          | Task (t, p) -> do_task t p
+          | Quit -> raise TasksActive
+        with
+        | Exit -> Domain.Sync.cpu_relax ()
       end;
       await pool promise
   | Some (Ok v) -> v
