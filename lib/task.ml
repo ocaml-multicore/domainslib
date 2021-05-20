@@ -1,6 +1,11 @@
 type 'a task = unit -> 'a
 
-type 'a promise = ('a, exn) result option Atomic.t
+type 'a promise_status =
+  Pending
+| Completed_ok of 'a
+| Completed_error of exn
+
+type 'a promise = 'a promise_status Atomic.t
 
 exception TasksActive
 
@@ -15,9 +20,9 @@ type pool =
 let do_task f p =
   try
     let res = f () in
-    Atomic.set p (Some (Ok res))
+    Atomic.set p (Completed_ok res)
   with e ->
-    Atomic.set p (Some (Error e));
+    Atomic.set p (Completed_error e);
     match e with
     | TasksActive -> raise e
     | _ -> ()
@@ -35,13 +40,13 @@ let setup_pool ~num_domains =
   {domains; task_chan}
 
 let async pool task =
-  let p = Atomic.make None in
+  let p = Atomic.make Pending in
   Multi_channel.send pool.task_chan (Task(task,p));
   p
 
 let rec await pool promise =
   match Atomic.get promise with
-  | None ->
+  | Pending ->
       begin
         try
           match Multi_channel.recv_poll pool.task_chan with
@@ -51,8 +56,8 @@ let rec await pool promise =
         | Exit -> Domain.Sync.cpu_relax ()
       end;
       await pool promise
-  | Some (Ok v) -> v
-  | Some (Error e) -> raise e
+  | Completed_ok v -> v
+  | Completed_error e -> raise e
 
 let teardown_pool pool =
   for _i=1 to Array.length pool.domains do
