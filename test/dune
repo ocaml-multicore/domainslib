@@ -1,4 +1,10 @@
 (test
+ (name spsc_unbounded_queue)
+ (libraries domainslib)
+ (modules spsc_unbounded_queue)
+ (modes native))
+
+(test
  (name test_chan)
  (libraries domainslib)
  (modules test_chan)
