@@ -9,6 +9,7 @@ dev-repo: "git+https://github.com/ocaml-multicore/domainslib.git"
 bug-reports: "https://github.com/ocaml-multicore/domainslib/issues"
 tags: []
 depends: [
+  "base-domains"
   "ocamlfind" {build}
   "dune" {build}
 ]
