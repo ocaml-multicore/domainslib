@@ -58,6 +58,12 @@
 	(modes native))
 
 (test
+ (name task_throughput)
+ (libraries domainslib)
+ (modules task_throughput)
+ (modes native))
+
+(test
  (name spectralnorm2_multicore)
  (libraries domainslib)
  (modules spectralnorm2_multicore)
