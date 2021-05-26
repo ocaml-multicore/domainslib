@@ -8,7 +8,8 @@ type pool
 (** Type of task pool *)
 
 val setup_pool : num_domains:int -> pool
-(** Sets up a task execution pool with [num_domains]. *)
+(** Sets up a task execution pool with [num_domains + 1] including the parent
+  * domain. *)
 
 exception TasksActive
 
