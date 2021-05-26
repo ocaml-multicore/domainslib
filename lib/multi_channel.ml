@@ -14,6 +14,7 @@ type 'a t = {
   mask: int;
   channels: 'a Ws_deque.t array;
   waiters: (waiting_status ref * mutex_condvar ) Chan.t;
+  n_stealers: int Atomic.t;
   next_domain_id: int Atomic.t;
   recv_block_spins: int;
 }
@@ -44,6 +45,7 @@ let make ?(recv_block_spins = 2048) n =
   { mask = sz - 1;
     channels = Array.init sz (fun _ -> Ws_deque.create ());
     waiters = Chan.make_unbounded ();
+    n_stealers = Atomic.make 0;
     next_domain_id = Atomic.make 0;
     recv_block_spins;
     }
@@ -100,7 +102,7 @@ let send mchan v =
   Ws_deque.push (Array.unsafe_get mchan.channels id) v;
   check_waiters mchan id
 
-let rec recv_poll_loop mchan dls cur_offset =
+let rec recv_steal_cycle mchan dls cur_offset =
   Domain.Sync.poll (); (* need to make sure we have a safepoint in here *)
   let offsets = dls.steal_offsets in
   let k = (Array.length offsets) - cur_offset in
@@ -116,32 +118,68 @@ let rec recv_poll_loop mchan dls cur_offset =
         begin
           Array.unsafe_set offsets idx (Array.unsafe_get offsets cur_offset);
           Array.unsafe_set offsets cur_offset t;
-          recv_poll_loop mchan dls (cur_offset+1)
+          recv_steal_cycle mchan dls (cur_offset+1)
         end
   end
 
-let recv_poll mchan =
-  Domain.Sync.poll (); (* need to make sure we have a safepoint in here *)
-  let id = (get_local_id mchan) in
+let rec recv_steal_repeated mchan repeats =
   try
-    Ws_deque.pop (Array.unsafe_get mchan.channels id)
-  with
-    | Exit -> recv_poll_loop mchan (Domain.DLS.get dls_key) 0
-
-let rec recv_poll_repeated mchan repeats =
-  try
-    recv_poll mchan
+    recv_steal_cycle mchan (Domain.DLS.get dls_key) 0
   with
     | Exit ->
       if repeats = 1 then raise Exit
       else begin
         Domain.Sync.cpu_relax ();
-        recv_poll_repeated mchan (repeats - 1)
+        recv_steal_repeated mchan (repeats - 1)
       end
 
+let pop_local mchan =
+  Domain.Sync.poll (); (* need to make sure we have a safepoint in here *)
+  let id = (get_local_id mchan) in
+  Ws_deque.pop (Array.unsafe_get mchan.channels id)
+  [@@inline]
+
+let recv_poll mchan =
+  try
+    pop_local mchan
+  with
+    | Exit -> recv_steal_repeated mchan 1
+
+(*
 let rec recv mchan =
   try
-    recv_poll_repeated mchan mchan.recv_block_spins
+    let n = Atomic.fetch_and_add mchan.n_stealers 1 in
+    if n*2 <= (Array.length mchan.channels) then
+      let res = recv_poll_repeated mchan mchan.recv_block_spins in
+      let _ = Atomic.fetch_and_add mchan.n_stealers (-1) in
+      res
+    else
+      raise Exit
+  with
+    Exit ->
+      begin
+        let _ = Atomic.fetch_and_add mchan.n_stealers (-1) in
+*)
+let rec recv mchan =
+  try
+    try
+      pop_local mchan
+    with
+      | Exit ->
+        begin
+          (* throttle our steal requests here *)
+          let n = Atomic.fetch_and_add mchan.n_stealers 1 in
+          if n*2 <= (Array.length mchan.channels) then
+            try
+              let res = recv_steal_repeated mchan mchan.recv_block_spins in
+              let _ = Atomic.fetch_and_add mchan.n_stealers (-1) in
+              res
+            with
+              Exit ->
+                let _ = Atomic.fetch_and_add mchan.n_stealers (-1) in
+                raise Exit
+          else raise Exit
+        end
   with
     Exit ->
       begin
