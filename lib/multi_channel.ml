@@ -8,7 +8,7 @@ type mutex_condvar = {
 
 type waiting_status =
   | Waiting
-  | Released
+  | Released of int
 
 type 'a t = {
   mask: int;
@@ -70,34 +70,35 @@ let clear_local_state () =
   let dls_state = Domain.DLS.get dls_key in
   dls_state.id <- (-1)
 
-let rec check_waiters mchan =
+let rec check_waiters mchan id =
   Domain.Sync.poll (); (* need to make sure we have a safepoint in here *)
   match Chan.recv_poll mchan.waiters with
     | None -> ()
     | Some (status, mc) ->
       (* avoid the lock if we possibly can *)
-      if !status = Released then check_waiters mchan
-      else begin
+      match !status with
+      | Released _ -> check_waiters mchan id
+      | Waiting -> begin
         Mutex.lock mc.mutex;
         match !status with
         | Waiting ->
           begin
-            status := Released;
+            status := Released id;
             Mutex.unlock mc.mutex;
             Condition.broadcast mc.condition
           end
-        | Released ->
+        | Released _ ->
           begin
             (* this waiter is already released, it might have found something on a poll *)
             Mutex.unlock mc.mutex;
-            check_waiters mchan
+            check_waiters mchan id
           end
       end
 
 let send mchan v =
   let id = (get_local_id mchan) in
   Ws_deque.push (Array.unsafe_get mchan.channels id) v;
-  check_waiters mchan
+  check_waiters mchan id
 
 let rec recv_poll_loop mchan dls cur_offset =
   Domain.Sync.poll (); (* need to make sure we have a safepoint in here *)
@@ -150,8 +151,9 @@ let rec recv mchan =
          *  - go to sleep if our wait block has not been notified
          *  - when notified retry the recieve
          *)
+        let dls_state = Domain.DLS.get dls_key in
+        let mc = dls_state.mc in
         let status = ref Waiting in
-        let mc = (Domain.DLS.get dls_key).mc in
         Chan.send mchan.waiters (status, mc);
         try
           let v = recv_poll mchan in
@@ -160,11 +162,11 @@ let rec recv mchan =
             to take *)
           Mutex.lock mc.mutex;
           begin match !status with
-          | Waiting -> (status := Released; Mutex.unlock mc.mutex)
-          | Released ->
+          | Waiting -> (status := Released dls_state.id; Mutex.unlock mc.mutex)
+          | Released id ->
             (* we were simultaneously released from a sender;
               so need to release a waiter *)
-            (Mutex.unlock mc.mutex; check_waiters mchan)
+            (Mutex.unlock mc.mutex; check_waiters mchan id)
           end;
           v
         with
@@ -176,5 +178,13 @@ let rec recv mchan =
                done;
                Mutex.unlock mc.mutex
             end;
-            recv mchan
+            Domain.Sync.poll ();
+            match !status with
+            | Released id -> begin
+              try
+                Ws_deque.steal (Array.unsafe_get mchan.channels (Int.logand id mchan.mask))
+              with
+                Exit -> recv mchan
+            end
+            | Waiting -> failwith "impossible!"
       end
