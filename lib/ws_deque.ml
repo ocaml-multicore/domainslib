@@ -91,7 +91,7 @@ module M : S = struct
   type 'a t = {
     top : int Atomic.t;
     bottom : int Atomic.t;
-    tab : 'a CArray.t Atomic.t;
+    tab : 'a ref CArray.t Atomic.t;
     mutable next_shrink : int;
   }
 
@@ -124,6 +124,7 @@ module M : S = struct
     b - t
 
   let push q v =
+    let v' = ref v in
     let b = Atomic.get q.bottom in
     let t = Atomic.get q.top in
     let a = Atomic.get q.tab in
@@ -134,8 +135,17 @@ module M : S = struct
       else
         a
     in
-    CArray.put a b v;
+    CArray.put a b v';
     Atomic.set q.bottom (b + 1)
+
+  let release ptr =
+    let res = !ptr in
+    (* we know this ptr will never be dereferenced, but want to
+      break the reference to ensure that the contents of the
+      deque array get garbage collected *)
+    ptr := Obj.magic ();
+    res
+  [@@inline]
 
   let pop q =
     if size q = 0 then raise Exit
@@ -154,7 +164,7 @@ module M : S = struct
         if b = t then begin
           (* single last element *)
           if (Atomic.compare_and_set q.top t (t + 1)) then
-            (Atomic.set q.bottom (b + 1); out)
+            (Atomic.set q.bottom (b + 1); release out)
           else
             (Atomic.set q.bottom (b + 1); raise Exit)
         end else begin
@@ -163,7 +173,7 @@ module M : S = struct
             Atomic.set q.tab (CArray.shrink a t b);
             set_next_shrink q
           end;
-          out
+          release out
         end
     end
 
@@ -177,7 +187,7 @@ module M : S = struct
       let a = Atomic.get q.tab in
       let out = CArray.get a t in
       if Atomic.compare_and_set q.top t (t + 1) then
-        out
+        release out
       else begin
         Domain.Sync.cpu_relax ();
         steal q
