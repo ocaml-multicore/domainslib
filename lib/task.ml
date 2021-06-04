@@ -22,7 +22,7 @@ let do_task f p =
     | TasksActive -> raise e
     | _ -> ()
 
-let setup_pool ~num_domains =
+let setup_pool ~num_additional_domains =
   let task_chan = Chan.make_unbounded () in
   let rec worker () =
     match Chan.recv task_chan with
@@ -31,7 +31,7 @@ let setup_pool ~num_domains =
         do_task t p;
         worker ()
   in
-  let domains = Array.init num_domains (fun _ -> Domain.spawn worker) in
+  let domains = Array.init num_additional_domains (fun _ -> Domain.spawn worker) in
   {domains; task_chan}
 
 let async pool task =

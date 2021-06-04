@@ -34,7 +34,7 @@ let eval_AtA_times_u pool u v =
   eval_A_times_u pool u w; eval_At_times_u pool w v
 
 let () =
-  let pool = T.setup_pool ~num_domains:(num_domains - 1) in
+  let pool = T.setup_pool ~num_additional_domains:(num_domains - 1) in
   let u = Array.make n 1.0  and  v = Array.make n 0.0 in
   for _i = 0 to 9 do
     eval_AtA_times_u pool u v; eval_AtA_times_u pool v u
