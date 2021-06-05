@@ -7,6 +7,7 @@ The supported data structures are:
 
 * [Channels](https://github.com/ocaml-multicore/domainslib/blob/master/lib/chan.mli)
   + Channels may be shared between multiple senders and receivers.
+  + Channels ensure FIFO message order. 
   + Channels come in two flavours -- bounded (fixed-buffer size (>= 0) beyond which the
     send blocks) and unbounded.
 * [Task](https://github.com/ocaml-multicore/domainslib/blob/master/lib/task.mli)
