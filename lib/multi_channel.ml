@@ -75,10 +75,10 @@ let init_domain_state mchan dls_state =
   dls_state
   [@@inline never]
 
-let get_local_id mchan =
+let get_local_state mchan =
   let dls_state = Domain.DLS.get dls_key in
-  if dls_state.id >= 0 then dls_state.id
-  else (init_domain_state mchan dls_state).id
+  if dls_state.id >= 0 then dls_state
+  else (init_domain_state mchan dls_state)
   [@@inline]
 
 let clear_local_state () =
@@ -110,7 +110,7 @@ let rec check_waiters mchan =
       end
 
 let send mchan v =
-  let id = (get_local_id mchan) in
+  let id = (get_local_state mchan).id in
   Ws_deque.push (Array.unsafe_get mchan.channels id) v;
   check_waiters mchan
 
@@ -134,28 +134,32 @@ let rec recv_poll_loop mchan dls cur_offset =
         end
   end
 
-let recv_poll mchan =
+let recv_poll_with_dls mchan dls =
   Domain.Sync.poll (); (* need to make sure we have a safepoint in here *)
-  let id = (get_local_id mchan) in
   try
-    Ws_deque.pop (Array.unsafe_get mchan.channels id)
+    Ws_deque.pop (Array.unsafe_get mchan.channels dls.id)
   with
-    | Exit -> recv_poll_loop mchan (Domain.DLS.get dls_key) 0
+    | Exit -> recv_poll_loop mchan dls 0
+  [@@inline]
 
-let rec recv_poll_repeated mchan repeats =
+let recv_poll mchan =
+  recv_poll_with_dls mchan (get_local_state mchan)
+
+let rec recv_poll_repeated mchan dls repeats =
   try
-    recv_poll mchan
+    recv_poll_with_dls mchan dls
   with
     | Exit ->
       if repeats = 1 then raise Exit
       else begin
         Domain.Sync.cpu_relax ();
-        recv_poll_repeated mchan (repeats - 1)
+        recv_poll_repeated mchan dls (repeats - 1)
       end
 
 let rec recv mchan =
+  let dls = get_local_state mchan in
   try
-    recv_poll_repeated mchan mchan.recv_block_spins
+    recv_poll_repeated mchan dls mchan.recv_block_spins
   with
     Exit ->
       begin
@@ -166,7 +170,7 @@ let rec recv mchan =
          *  - when notified retry the recieve
          *)
         let status = ref Waiting in
-        let mc = (Domain.DLS.get dls_key).mc in
+        let mc = dls.mc in
         Chan.send mchan.waiters (status, mc);
         try
           let v = recv_poll mchan in
