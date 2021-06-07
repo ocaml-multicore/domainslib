@@ -52,7 +52,7 @@ module CArray = struct
     assert ((sz >= n) && (sz > 0));
     assert (Int.logand sz (sz-1) == 0);
     {
-      arr  = Array.init sz (fun _ -> v);
+      arr  = Array.make sz v;
       mask = sz - 1
     }
 
