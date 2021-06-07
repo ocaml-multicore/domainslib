@@ -130,7 +130,7 @@ module M : S = struct
     let a = Atomic.get q.tab in
     let size = b - t in
     let a =
-      if size >= CArray.size a - 1 then
+      if size = CArray.size a then
         (grow q t b; Atomic.get q.tab)
       else
         a
