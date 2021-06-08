@@ -22,8 +22,8 @@ let do_task f p =
     | TasksActive -> raise e
     | _ -> ()
 
-let setup_pool ~num_domains =
-  let task_chan = Multi_channel.make (num_domains+1) in
+let setup_pool ~num_additional_domains =
+  let task_chan = Multi_channel.make (num_additional_domains+1) in
   let rec worker () =
     match Multi_channel.recv task_chan with
     | Quit -> Multi_channel.clear_local_state ();
@@ -31,7 +31,7 @@ let setup_pool ~num_domains =
         do_task t p;
         worker ()
   in
-  let domains = Array.init num_domains (fun _ -> Domain.spawn worker) in
+  let domains = Array.init num_additional_domains (fun _ -> Domain.spawn worker) in
   {domains; task_chan}
 
 let async pool task =

@@ -7,8 +7,9 @@ type 'a promise
 type pool
 (** Type of task pool *)
 
-val setup_pool : num_domains:int -> pool
-(** Sets up a task execution pool with [num_domains]. *)
+val setup_pool : num_additional_domains:int -> pool
+(** Sets up a task execution pool with [num_additional_domains + 1] domains
+  * including the current domain *)
 
 exception TasksActive
 

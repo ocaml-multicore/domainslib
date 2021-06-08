@@ -53,7 +53,7 @@ let work _ = Domain.Sync.poll ()
 let _ =
   Printf.printf "n_iterations: %d   n_units: %d  n_domains: %d\n"
     n_iterations n_tasks n_domains;
-  let pool = T.setup_pool ~num_domains:(n_domains - 1) in
+  let pool = T.setup_pool ~num_additional_domains:(n_domains - 1) in
 
   let hist = TimingHist.make 5 25 in
   for _ = 1 to n_iterations do

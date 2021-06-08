@@ -3,7 +3,7 @@ module T = Domainslib.Task
 exception E
 
 let _ =
-  let pool = T.setup_pool ~num_domains:3 in
+  let pool = T.setup_pool ~num_additional_domains:3 in
 
   let p1 = T.async pool (fun () ->
     let p2 = T.async pool (fun () -> raise E) in
