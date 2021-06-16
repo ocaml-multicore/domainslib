@@ -76,7 +76,7 @@ let parallel_for_reduce ?(chunk_size=0) ~start ~finish ~body pool reduce_fun ini
         if i > e then acc
         else loop (i+1) (reduce_fun acc (body i))
       in
-      loop s init
+      loop (s+1) (body s)
     else begin
       let d = s + ((e - s) / 2) in
       let p = async pool (fun _ -> work s d) in
@@ -85,7 +85,7 @@ let parallel_for_reduce ?(chunk_size=0) ~start ~finish ~body pool reduce_fun ini
       reduce_fun left right
     end
   in
-  work start finish
+  reduce_fun init (work start finish)
 
 let parallel_for ?(chunk_size=0) ~start ~finish ~body pool =
   let chunk_size = if chunk_size > 0 then chunk_size
