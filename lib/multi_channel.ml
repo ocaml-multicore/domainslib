@@ -36,7 +36,6 @@ type 'a t = {
 type dls_state = {
   mutable id: int;
   mutable steal_offsets: int array;
-  rng_state: Random.State.t;
   mc: mutex_condvar;
 }
 
@@ -45,7 +44,6 @@ let dls_key =
     {
       id = -1;
       steal_offsets = Array.make 1 0;
-      rng_state = Random.State.make_self_init ();
       mc = {mutex=Mutex.create (); condition=Condition.create ()};
     })
 
@@ -120,7 +118,7 @@ let rec recv_poll_loop mchan dls cur_offset =
   let k = (Array.length offsets) - cur_offset in
   if k = 0 then raise Exit
   else begin
-    let idx = cur_offset + (Random.State.int dls.rng_state k) in
+    let idx = cur_offset + (Random.int k) in
     let t = Array.unsafe_get offsets idx in
     let channel = Array.unsafe_get mchan.channels (Int.logand (dls.id + t) mchan.mask) in
     try
