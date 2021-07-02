@@ -1,6 +1,11 @@
 name: main
 
-on: [push, pull_request]
+on:
+  pull_request:
+  push:
+  schedule:
+    # Prime the caches every Monday
+    - cron: 0 1 * * MON
 
 jobs:
   build:
@@ -9,6 +14,9 @@ jobs:
         os:
           - ubuntu-latest
           - macos-latest
+        ocaml-compiler:
+          - 4.12.0+domains
+          - 4.12.0+domains+effects
 
     runs-on: ${{ matrix.os }}
 
@@ -16,11 +24,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Setup opam with setup-ocaml
-        uses: avsm/setup-ocaml@v1
+      - name: Use OCaml ${{ matrix.ocaml-compiler }}
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ocaml-variants.${{ matrix.ocaml-compiler }}
+          opam-repositories: |
+            multicore: https://github.com/ocaml-multicore/multicore-opam.git
+            default: https://github.com/ocaml/opam-repository.git
 
-      - name: Run the CI
-        env:
-          OCAML_VERSION: 4.12.0+domains+effects
-        run: |
-          bash -xe .ci.sh
+      - run: opam install . --deps-only
+
+      - run: opam exec -- make all
+
+      - run: opam exec -- make run_test
