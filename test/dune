@@ -69,7 +69,7 @@
  (modules spectralnorm2_multicore)
  (modes native))
 
-(test
+(test 
  (name summed_area_table)
  (libraries domainslib)
  (modules summed_area_table)
@@ -80,3 +80,18 @@
  (libraries domainslib unix)
  (modules prefix_sum)
  (modes native))
+
+(test
+ (name mergesort_multicore)
+ (libraries domainslib)
+ (modules mergesort_multicore))
+
+(test
+ (name quicksort_multicore)
+ (libraries domainslib)
+ (modules quicksort_multicore))
+
+(test
+ (name test_intarray)
+ (libraries domainslib)
+ (modules test_intarray))
