@@ -80,3 +80,9 @@
  (libraries domainslib unix)
  (modules prefix_sum)
  (modes native))
+
+(test
+ (name test_task)
+ (libraries domainslib)
+ (modules test_task)
+ (modes native))
