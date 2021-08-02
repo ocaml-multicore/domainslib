@@ -25,19 +25,17 @@ let sum_sequence pool chunk_size init = fun () ->
 
 (* Parallel scan *)
 
-let prefix_sum pool = fun () ->
+let prefix_sum pool n = fun () ->
   let prefix_s l = List.rev (List.fold_left (fun a y -> match a with
     | [] -> [y]
     | x::_ -> (x+y)::a) [] l) in
-  let arr = Array.make 1000 1 in
+  let arr = Array.make n 1 in
   let v1 = Task.parallel_scan pool (+) arr in
   let ls = Array.to_list arr in
   let v2 = prefix_s ls in
   assert (v1 = Array.of_list v2)
 
-
-let () =
-  let pool = Task.setup_pool ~num_additional_domains:3 in
+let run_all pool = fun () ->
   modify_arr pool 0 ();
   modify_arr pool 25 ();
   modify_arr pool 100 ();
@@ -51,6 +49,17 @@ let () =
   sum_sequence pool 1 10 ();
   sum_sequence pool 100 10 ();
   sum_sequence pool 100 100 ();
-  prefix_sum pool ();
+  prefix_sum pool 1000 ();
+  prefix_sum pool 3 ()
+
+let () =
+  let pool = Task.setup_pool ~num_additional_domains:3 in
+  run_all pool ();
   Task.teardown_pool pool;
+  let pool2 = Task.setup_pool ~num_additional_domains:0 in
+  run_all pool2 ();
+  Task.teardown_pool pool2;
+  let pool3 = Task.setup_pool ~num_additional_domains:31 in
+  run_all pool3 ();
+  Task.teardown_pool pool3;
   print_endline "ok"
