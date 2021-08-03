@@ -56,3 +56,6 @@ val parallel_scan : pool -> ('a -> 'a -> 'a) -> 'a array -> 'a array
 
 val parallel_map : pool -> ?chunk_size:int -> ('a -> 'b ) -> 'a array
                    -> 'b array
+(** [parallel_map p c f arr] is similar to [Array.map], but runs the computation
+  * in parallel. The [chunk_size] parameter is optional, when not provided
+  * defaults to the chunk size computed in [parallel_for] *)
