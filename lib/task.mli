@@ -53,3 +53,6 @@ val parallel_scan : pool -> ('a -> 'a -> 'a) -> 'a array -> 'a array
   * intermediate values. The reduce operations are performed in an arbitrary
   * order and the reduce function needs to be commutative and associative in 
   * order to obtain a deterministic result *)
+
+val parallel_map : pool -> ?chunk_size:int -> ('a -> 'b ) -> 'a array
+                   -> 'b array

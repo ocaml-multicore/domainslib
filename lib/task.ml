@@ -161,3 +161,11 @@ let parallel_scan pool op elements =
   prefix_s
   end
 
+
+let parallel_map pool ?(chunk_size=0) f arr =
+  let len = Array.length arr in
+  let res = Array.make len (f arr.(0)) in
+  parallel_for ~chunk_size ~start:1 ~finish:(len - 1)
+  ~body:(fun i ->
+    res.(i) <- (f arr.(i))) pool;
+  res

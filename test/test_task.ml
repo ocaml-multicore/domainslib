@@ -35,6 +35,13 @@ let prefix_sum pool n = fun () ->
   let v2 = prefix_s ls in
   assert (v1 = Array.of_list v2)
 
+let parallel_map pool chunk_size = fun () ->
+  let arr = Array.init 1000 (fun i -> i) in
+  let res_1 =
+  Task.parallel_map pool ~chunk_size (fun x -> x + 3) arr in
+  let res_2 = Array.map (fun x -> x + 3) arr in
+  assert (res_1 = res_2)
+
 let run_all pool = fun () ->
   modify_arr pool 0 ();
   modify_arr pool 25 ();
@@ -50,7 +57,10 @@ let run_all pool = fun () ->
   sum_sequence pool 100 10 ();
   sum_sequence pool 100 100 ();
   prefix_sum pool 1000 ();
-  prefix_sum pool 3 ()
+  prefix_sum pool 3 ();
+  parallel_map pool 0 ();
+  parallel_map pool 10 ();
+  parallel_map pool 100 ()
 
 let () =
   let pool = Task.setup_pool ~num_additional_domains:3 in
