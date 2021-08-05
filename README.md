@@ -14,7 +14,7 @@ The supported data structures are:
   + Work-stealing task pool with async/await parallelism and parallel for loop.
 
 See
-[examples](https://github.com/ocaml-multicore/domainslib/tree/task_pool/test)
+[examples](https://github.com/ocaml-multicore/domainslib/tree/master/test)
 for usage.
 
 ## Installation
