@@ -47,9 +47,6 @@ module TimingHist = struct
 
 end
 
-
-let work _ = Domain.Sync.poll ()
-
 let _ =
   Printf.printf "n_iterations: %d   n_units: %d  n_domains: %d\n"
     n_iterations n_tasks n_domains;
@@ -58,7 +55,7 @@ let _ =
   let hist = TimingHist.make 5 25 in
   for _ = 1 to n_iterations do
     let t0 = Domain.timer_ticks () in
-    T.parallel_for pool ~start:1 ~finish:n_tasks ~body:work;
+    T.parallel_for pool ~start:1 ~finish:n_tasks ~body:(fun _ -> ());
     let t = Int64.sub (Domain.timer_ticks ()) t0 in
     TimingHist.add_point hist (Int64.to_int t);
   done;
