@@ -86,7 +86,6 @@ let clear_local_state () =
   dls_state.id <- (-1)
 
 let rec check_waiters mchan =
-  Domain.Sync.poll (); (* need to make sure we have a safepoint in here *)
   match Chan.recv_poll mchan.waiters with
     | None -> ()
     | Some (status, mc) ->
@@ -115,7 +114,6 @@ let send mchan v =
   check_waiters mchan
 
 let rec recv_poll_loop mchan dls cur_offset =
-  Domain.Sync.poll (); (* need to make sure we have a safepoint in here *)
   let offsets = dls.steal_offsets in
   let k = (Array.length offsets) - cur_offset in
   if k = 0 then raise Exit
@@ -135,7 +133,6 @@ let rec recv_poll_loop mchan dls cur_offset =
   end
 
 let recv_poll_with_dls mchan dls =
-  Domain.Sync.poll (); (* need to make sure we have a safepoint in here *)
   try
     Ws_deque.pop (Array.unsafe_get mchan.channels dls.id)
   with
