@@ -35,7 +35,6 @@ repository:
 
 First install the multicore compiler and dune:
 ```bash
-$ opam update
 $ opam switch create 4.12.0+domains+effects
 $ opam install dune
 ```
