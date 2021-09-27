@@ -24,9 +24,8 @@ The library can be installed using
 repository of multicore specific packages.
 
 ```bash
-$ opam update
-$ opam switch create 4.12.0+domains+effects --packages=ocaml-variants.4.12.0+domains+effects --repositories=multicore=git+https://github.com/ocaml-multicore/multicore-opam.git,default
-$ opam install dune domainslib
+$ opam switch create 4.12.0+domains+effects
+$ opam install domainslib
 ```
 
 ## Development
@@ -37,8 +36,7 @@ repository:
 First install the multicore compiler and dune:
 ```bash
 $ opam update
-$ opam switch create 4.12.0+domains+effects --packages=ocaml-variants.4.12.0+domains+effects --repositories=multicore=git+https://github.com/ocaml-multicore/multicore-opam.git,default
-$ opam switch 4.12.0+domains+effects
+$ opam switch create 4.12.0+domains+effects
 $ opam install dune
 ```
 
