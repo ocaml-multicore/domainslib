@@ -17,19 +17,19 @@ val teardown_pool : pool -> unit
 (** Tears down the task execution pool.
   * Raises [TasksActive] exception if any tasks are currently active. *)
 
-val async : pool -> 'a task -> 'a promise
+val async : ?pool:pool -> 'a task -> 'a promise
 (** [async p t] runs the task [t] asynchronously in the pool [p]. The function
   * returns a promise [r] in which the result of the task [t] will be stored.
   * *)
 
-val await : pool -> 'a promise -> 'a
+val await : ?pool:pool -> 'a promise -> 'a
 (** [await p r] waits for the promise to be resolved. If the task associated
  * with the promise had completed sucessfully, then the result of the task will
  * be returned. If the task had raised an exception, then [await] raises the
  * same exception. *)
 
-val parallel_for : ?chunk_size:int -> start:int -> finish:int ->
-                   body:(int -> unit) -> pool -> unit
+val parallel_for : ?pool:pool -> ?chunk_size:int -> start:int -> finish:int ->
+                   body:(int -> unit) -> unit -> unit
 (** [parallel_for c s f b p] behaves similar to [for i=s to f do b i done], but
   * runs the for loop in parallel. The chunk size [c] determines the number of
   * body applications done in one task; this will default to
@@ -38,18 +38,52 @@ val parallel_for : ?chunk_size:int -> start:int -> finish:int ->
   * divide-and-conquer scheme.
   *)
 
-val parallel_for_reduce : ?chunk_size:int -> start:int -> finish:int ->
-                body:(int -> 'a) -> pool -> ('a -> 'a -> 'a) -> 'a -> 'a
+val parallel_for_reduce : ?pool:pool -> ?chunk_size:int -> start:int -> finish:int ->
+                body:(int -> 'a) -> ('a -> 'a -> 'a) -> 'a -> 'a
 (** [parallel_for_reduce c s f b p r i] is similar to [parallel_for] except
   * that the result returned by each iteration is reduced with [r] with initial
   * value [i]. The reduce operations are performed in an arbitrary order and the
-  * reduce function needs to be commutative and associative in order to obtain 
+  * reduce function needs to be commutative and associative in order to obtain
   * a deterministic result. *)
 
-val parallel_scan : pool -> ('a -> 'a -> 'a) -> 'a array -> 'a array
+val parallel_scan : ?pool:pool -> ('a -> 'a -> 'a) -> 'a array -> 'a array
 (** [parallel_scan p op a] computes the scan of the array [a]
   * in parallel with binary operator [op] and returns the result array.
   * Scan is similar to [Array.fold_left] but returns an array of reduced
   * intermediate values. The reduce operations are performed in an arbitrary
-  * order and the reduce function needs to be commutative and associative in 
+  * order and the reduce function needs to be commutative and associative in
   * order to obtain a deterministic result *)
+
+module Pool : sig
+(** Named Pools *)
+
+  val is_default_active : unit -> bool
+  (** returns true if the default task pool is active, returns false
+    * otherwise *)
+
+  val setup_default_pool : ?num_additional_domains:int -> unit -> unit
+  (** creates a pool with [num_additional_domains] and sets it as the default
+    * pool. Teardown the existing pool with [teardown_default_pool] before
+    * calling. *)
+
+  val teardown_default_pool : unit -> unit
+  (** tears down the default pool and makes its status inactive.
+    * [setup_default_pool] should be called again before calling Task
+    * functions.*)
+
+  val add_pool : string -> pool -> unit
+  (** [add_pool name p] adds stores p in a list of existing pools. [p] can be
+    * fetched later with the named parameter [name]*)
+
+  val fetch_pool : string -> pool
+  (** [fetch_pool name] returns the pool mapped to [name]. *)
+
+  val destroy_pool : string -> unit
+  (** [destroy_pool name] shuts down the pool associated to [name] and removes
+    it from the collection of pools. *)
+
+  val fetch_default_pool : unit -> pool
+  (** Returns the default pool if it is active.
+
+    * @raise PoolInactive is the default pool is not active *)
+end

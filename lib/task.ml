@@ -3,6 +3,7 @@ type 'a task = unit -> 'a
 type 'a promise = ('a, exn) result option Atomic.t
 
 exception TasksActive
+exception PoolInactive
 
 type task_msg =
   Task : 'a task * 'a promise -> task_msg
@@ -34,12 +35,78 @@ let setup_pool ~num_additional_domains =
   let domains = Array.init num_additional_domains (fun _ -> Domain.spawn worker) in
   {domains; task_chan}
 
-let async pool task =
+let teardown_pool pool =
+  for _i=1 to Array.length pool.domains do
+    Multi_channel.send pool.task_chan Quit
+  done;
+  Multi_channel.clear_local_state ();
+  Array.iter Domain.join pool.domains
+
+ module Pool = struct
+
+    let table = Hashtbl.create 8
+
+    let pool_mutex = Mutex.create ()
+
+    let default = Atomic.make true
+
+    let is_default_active () = Atomic.get default
+
+    let default_pool = Atomic.make (setup_pool ~num_additional_domains:3)
+
+    let setup_default_pool ?num_additional_domains:(n = 3) () =
+      let p = setup_pool ~num_additional_domains:n in
+      Atomic.set default_pool p;
+      Atomic.set default true
+
+    let teardown_default_pool () =
+      teardown_pool (Atomic.get default_pool);
+      Atomic.set default false
+
+    let add_pool name pool =
+      Mutex.lock pool_mutex;
+      Hashtbl.add table name pool;
+      Mutex.unlock pool_mutex
+
+    let fetch_pool name =
+      Mutex.lock pool_mutex;
+      let p = Hashtbl.find table name in
+      Mutex.unlock pool_mutex;
+      p
+
+    let destroy_pool name =
+      Mutex.lock pool_mutex;
+      let p = Hashtbl.find table name in
+      teardown_pool p;
+      Hashtbl.remove table name;
+      Mutex.unlock pool_mutex
+
+    let fetch_default_pool () =
+      if not (is_default_active ()) then
+        raise PoolInactive
+      else
+        Atomic.get default_pool
+
+  end
+
+let get_arg arg =
+  match arg with
+  | Some x -> x
+  | None -> begin
+    if not (Pool.is_default_active ()) then
+      raise PoolInactive
+    else
+      Pool.fetch_default_pool ()
+    end
+
+let async ?pool task =
+  let pool = get_arg pool in
   let p = Atomic.make None in
   Multi_channel.send pool.task_chan (Task(task,p));
   p
 
-let rec await pool promise =
+let rec await ?pool promise =
+  let pool = get_arg pool in
   match Atomic.get promise with
   | None ->
       begin
@@ -50,18 +117,12 @@ let rec await pool promise =
         with
         | Exit -> Domain.Sync.cpu_relax ()
       end;
-      await pool promise
+      await ~pool promise
   | Some (Ok v) -> v
   | Some (Error e) -> raise e
 
-let teardown_pool pool =
-  for _i=1 to Array.length pool.domains do
-    Multi_channel.send pool.task_chan Quit
-  done;
-  Multi_channel.clear_local_state ();
-  Array.iter Domain.join pool.domains
-
-let parallel_for_reduce ?(chunk_size=0) ~start ~finish ~body pool reduce_fun init =
+let parallel_for_reduce ?pool ?(chunk_size=0) ~start ~finish ~body reduce_fun init =
+  let pool = get_arg pool in
   let chunk_size = if chunk_size > 0 then chunk_size
       else begin
         let n_domains = (Array.length pool.domains) + 1 in
@@ -79,15 +140,16 @@ let parallel_for_reduce ?(chunk_size=0) ~start ~finish ~body pool reduce_fun ini
       loop (s+1) (body s)
     else begin
       let d = s + ((e - s) / 2) in
-      let p = async pool (fun _ -> work s d) in
+      let p = async ~pool (fun _ -> work s d) in
       let right = work (d+1) e in
-      let left = await pool p in
+      let left = await ~pool p in
       reduce_fun left right
     end
   in
   reduce_fun init (work start finish)
 
-let parallel_for ?(chunk_size=0) ~start ~finish ~body pool =
+let parallel_for ?pool ?(chunk_size=0) ~start ~finish ~body () =
+  let pool = get_arg pool in
   let chunk_size = if chunk_size > 0 then chunk_size
       else begin
         let n_domains = (Array.length pool.domains) + 1 in
@@ -101,14 +163,16 @@ let parallel_for ?(chunk_size=0) ~start ~finish ~body pool =
       for i = s to e do fn i done
     else begin
       let d = s + ((e - s) / 2) in
-      let left = async pool (fun _ -> work pool fn s d) in
+      let left = async ~pool (fun _ -> work pool fn s d) in
       work pool fn (d+1) e;
-      await pool left
+      await ~pool left
     end
   in
   work pool body start finish
 
-let parallel_scan pool op elements =
+let parallel_scan ?pool op elements =
+
+  let pool = get_arg pool in
 
   let scan_part op elements prefix_sum start finish =
     assert (Array.length elements > (finish - start));
@@ -126,11 +190,11 @@ let parallel_scan pool op elements =
   let p = (Array.length pool.domains) + 1 in
   let prefix_s = Array.copy elements in
 
-  parallel_for pool ~chunk_size:1 ~start:0 ~finish:(p - 1)
+  parallel_for ~pool ~chunk_size:1 ~start:0 ~finish:(p - 1)
   ~body:(fun i ->
     let s = (i * n) / (p ) in
     let e = (i + 1) * n / (p ) - 1 in
-    scan_part op elements prefix_s s e);
+    scan_part op elements prefix_s s e) ();
 
   if (p > 2) then begin
   let x = ref prefix_s.(n/p - 1) in
@@ -141,12 +205,12 @@ let parallel_scan pool op elements =
   done
   end;
 
-  parallel_for pool ~chunk_size:1 ~start:1 ~finish:(p - 1)
+  parallel_for ~pool ~chunk_size:1 ~start:1 ~finish:(p - 1)
   ~body:( fun i ->
     let s = i * n / (p) in
     let e = (i + 1) * n / (p) - 2 in
     let offset = prefix_s.(s - 1) in
       add_offset op prefix_s offset s e
-    );
+    ) ();
 
   prefix_s

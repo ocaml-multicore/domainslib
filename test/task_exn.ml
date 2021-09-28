@@ -3,27 +3,25 @@ module T = Domainslib.Task
 exception E
 
 let _ =
-  let pool = T.setup_pool ~num_additional_domains:3 in
-
-  let p1 = T.async pool (fun () ->
-    let p2 = T.async pool (fun () -> raise E) in
-    T.await pool p2)
+  let p1 = T.async  (fun () ->
+    let p2 = T.async (fun () -> raise E) in
+    T.await p2)
   in
-  begin match T.await pool p1 with
+  begin match T.await p1 with
   | _ -> ()
   | exception E -> print_endline "Caught E"
   end;
 
-  let _p1 = T.async pool (fun () ->
-    let p2 = T.async pool (fun () ->
+  let _p1 = T.async (fun () ->
+    let p2 = T.async (fun () ->
       let rec loop n =
         if n = 0 then ()
         else loop (n-1)
       in loop 100000000)
     in
-    T.await pool p2)
+    T.await p2)
   in
-  match T.teardown_pool pool with
+  match T.Pool.teardown_default_pool () with
   | _ -> ()
   | exception T.TasksActive ->
       (* innermost task may still be active *)

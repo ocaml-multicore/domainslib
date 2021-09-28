@@ -13,33 +13,32 @@ module T = Domainslib.Task
 
 let eval_A i j = 1. /. float((i+j)*(i+j+1)/2+i+1)
 
-let eval_A_times_u pool u v =
+let eval_A_times_u u v =
   let n = Array.length v - 1 in
-  T.parallel_for pool ~start:0 ~finish:n ~chunk_size:(n/num_domains)
+  T.parallel_for ~start:0 ~finish:n ~chunk_size:(n/num_domains)
     ~body:(fun i ->
       let vi = ref 0. in
       for j = 0 to n do vi := !vi +. eval_A i j *. u.(j) done;
-      v.(i) <- !vi)
+      v.(i) <- !vi) ()
 
-let eval_At_times_u pool u v =
+let eval_At_times_u u v =
   let n = Array.length v -1 in
-  T.parallel_for pool ~start:0 ~finish:n ~chunk_size:(n/num_domains)
+  T.parallel_for ~start:0 ~finish:n ~chunk_size:(n/num_domains)
     ~body:(fun i ->
     let vi = ref 0. in
     for j = 0 to n do vi := !vi +. eval_A j i *. u.(j) done;
-    v.(i) <- !vi)
+    v.(i) <- !vi) ()
 
-let eval_AtA_times_u pool u v =
+let eval_AtA_times_u u v =
   let w = Array.make (Array.length u) 0.0 in
-  eval_A_times_u pool u w; eval_At_times_u pool w v
+  eval_A_times_u u w; eval_At_times_u w v
 
 let () =
-  let pool = T.setup_pool ~num_additional_domains:(num_domains - 1) in
   let u = Array.make n 1.0  and  v = Array.make n 0.0 in
   for _i = 0 to 9 do
-    eval_AtA_times_u pool u v; eval_AtA_times_u pool v u
+    eval_AtA_times_u u v; eval_AtA_times_u v u
   done;
-  T.teardown_pool pool;
+  T.Pool.teardown_default_pool ();
 
   let vv = ref 0.0  and  vBv = ref 0.0 in
   for i=0 to n-1 do
