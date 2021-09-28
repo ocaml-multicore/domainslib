@@ -37,7 +37,7 @@ let prefix_sum pool = fun () ->
 
 
 let () =
-  let pool = Task.setup_pool ~num_additional_domains:3 in
+  let pool = Task.setup_pool ~num_additional_domains:3 ~name:"pool1" () in
   modify_arr pool 0 ();
   modify_arr pool 25 ();
   modify_arr pool 100 ();
@@ -45,7 +45,8 @@ let () =
   inc_ctr pool 16 ();
   inc_ctr pool 32 ();
   inc_ctr pool 1000 ();
-  sum_sequence pool 0 0 ();
+  let p2 = Task.lookup_pool "pool1" in
+  sum_sequence p2 0 0 ();
   sum_sequence pool 10 10 ();
   sum_sequence pool 1 0 ();
   sum_sequence pool 1 10 ();
@@ -53,4 +54,7 @@ let () =
   sum_sequence pool 100 100 ();
   prefix_sum pool ();
   Task.teardown_pool pool;
+  try
+    let _ = Task.setup_pool ~num_additional_domains:(-1) () in ()
+  with Invalid_argument _ -> ();
   print_endline "ok"
