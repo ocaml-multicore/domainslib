@@ -45,7 +45,7 @@ let () =
   inc_ctr pool 16 ();
   inc_ctr pool 32 ();
   inc_ctr pool 1000 ();
-  let p2 = Task.lookup_pool "pool1" in
+  let p2 = Option.get @@ Task.lookup_pool "pool1" in
   sum_sequence p2 0 0 ();
   sum_sequence pool 10 10 ();
   sum_sequence pool 1 0 ();

@@ -19,9 +19,13 @@ val teardown_pool : pool -> unit
 (** Tears down the task execution pool.
   * Raises [TasksActive] exception if any tasks are currently active. *)
 
-val lookup_pool : string -> pool
-(** [lookup_pool name] returns the pool associated to [name].
-  * Raises [Not_found] if no pool is associated to [name] *)
+val lookup_pool : string -> pool option
+(** [lookup_pool name] returns [Some pool] if [pool] is associated to [name] or
+  * returns [None] if no value is associated to it. *)
+
+val get_num_domains : pool -> int
+(** [get_num_domains pool] returns the total number of domains in [pool]
+  * including the parent domain. *)
 
 val async : pool -> 'a task -> 'a promise
 (** [async p t] runs the task [t] asynchronously in the pool [p]. The function

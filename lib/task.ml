@@ -24,9 +24,12 @@ let do_task f p =
 
 let named_pools = Hashtbl.create 8
 
+let named_pool_mutex = Mutex.create ()
+
 let setup_pool ?name ~num_additional_domains () =
   if num_additional_domains < 0 then
-    raise (Invalid_argument "Task.setup_pool")
+    raise (Invalid_argument
+    "Task.setup_pool: num_additional_domains must be at least 0")
   else
   let task_chan = Multi_channel.make (num_additional_domains+1) in
   let rec worker () =
@@ -39,7 +42,10 @@ let setup_pool ?name ~num_additional_domains () =
   let domains = Array.init num_additional_domains (fun _ -> Domain.spawn worker) in
   let p = {domains; task_chan} in
   let _ = match name with
-    | Some x -> Hashtbl.add named_pools x p
+    | Some x ->
+      Mutex.lock named_pool_mutex;
+      Hashtbl.add named_pools x p;
+      Mutex.unlock named_pool_mutex
     | None -> ()
   in
   p
@@ -72,7 +78,12 @@ let teardown_pool pool =
   Array.iter Domain.join pool.domains
 
 let lookup_pool name =
-  Hashtbl.find named_pools name
+  Mutex.lock named_pool_mutex;
+  let p = Hashtbl.find_opt named_pools name in
+  Mutex.unlock named_pool_mutex;
+  p
+
+let get_num_domains pool = (Array.length pool.domains + 1)
 
 let parallel_for_reduce ?(chunk_size=0) ~start ~finish ~body pool reduce_fun init =
   let chunk_size = if chunk_size > 0 then chunk_size
