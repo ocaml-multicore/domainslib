@@ -57,6 +57,14 @@ let () =
   prefix_sum p2 ();
   Task.teardown_pool pool1;
   Task.teardown_pool pool2;
+
+  try
+    sum_sequence pool2 0 0 ();
+    assert false
+  with Invalid_argument _ -> ();
+
+  assert (Task.lookup_pool "pool1" = None);
+
   try
     let _ = Task.setup_pool ~num_additional_domains:(-1) () in ()
   with Invalid_argument _ -> ();
