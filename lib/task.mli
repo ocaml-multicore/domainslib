@@ -7,15 +7,25 @@ type 'a promise
 type pool
 (** Type of task pool *)
 
-val setup_pool : num_additional_domains:int -> pool
+val setup_pool : ?name:string -> num_additional_domains:int -> unit -> pool
 (** Sets up a task execution pool with [num_additional_domains + 1] domains
-  * including the current domain *)
+  * including the current domain. If [name] is provided, the pool is mapped to
+  * [name] which can be looked up later with [lookup_pool name].
+  * Raises [Invalid_argumet] when [num_additional_domains] is less than 0. *)
 
 exception TasksActive
 
 val teardown_pool : pool -> unit
 (** Tears down the task execution pool.
   * Raises [TasksActive] exception if any tasks are currently active. *)
+
+val lookup_pool : string -> pool option
+(** [lookup_pool name] returns [Some pool] if [pool] is associated to [name] or
+  * returns [None] if no value is associated to it. *)
+
+val get_num_domains : pool -> int
+(** [get_num_domains pool] returns the total number of domains in [pool]
+  * including the parent domain. *)
 
 val async : pool -> 'a task -> 'a promise
 (** [async p t] runs the task [t] asynchronously in the pool [p]. The function

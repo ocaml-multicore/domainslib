@@ -37,20 +37,35 @@ let prefix_sum pool = fun () ->
 
 
 let () =
-  let pool = Task.setup_pool ~num_additional_domains:3 in
-  modify_arr pool 0 ();
-  modify_arr pool 25 ();
-  modify_arr pool 100 ();
-  inc_ctr pool 0 ();
-  inc_ctr pool 16 ();
-  inc_ctr pool 32 ();
-  inc_ctr pool 1000 ();
-  sum_sequence pool 0 0 ();
-  sum_sequence pool 10 10 ();
-  sum_sequence pool 1 0 ();
-  sum_sequence pool 1 10 ();
-  sum_sequence pool 100 10 ();
-  sum_sequence pool 100 100 ();
-  prefix_sum pool ();
-  Task.teardown_pool pool;
+  let pool1 = Task.setup_pool ~num_additional_domains:2 ~name:"pool1" () in
+  let pool2 = Task.setup_pool ~num_additional_domains:2 ~name:"pool2" () in
+  let p1 = Option.get @@ Task.lookup_pool "pool1" in
+  modify_arr pool1 0 ();
+  modify_arr pool1 25 ();
+  modify_arr pool1 100 ();
+  inc_ctr p1 0 ();
+  inc_ctr p1 16 ();
+  inc_ctr p1 32 ();
+  inc_ctr p1 1000 ();
+  let p2 = Option.get @@ Task.lookup_pool "pool2" in
+  sum_sequence pool2 0 0 ();
+  sum_sequence pool2 10 10 ();
+  sum_sequence pool2 1 0 ();
+  sum_sequence p2 1 10 ();
+  sum_sequence p2 100 10 ();
+  sum_sequence p2 100 100 ();
+  prefix_sum p2 ();
+  Task.teardown_pool pool1;
+  Task.teardown_pool pool2;
+
+  try
+    sum_sequence pool2 0 0 ();
+    assert false
+  with Invalid_argument _ -> ();
+
+  assert (Task.lookup_pool "pool1" = None);
+
+  try
+    let _ = Task.setup_pool ~num_additional_domains:(-1) () in ()
+  with Invalid_argument _ -> ();
   print_endline "ok"
