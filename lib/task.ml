@@ -38,7 +38,7 @@ let setup_pool ?name ~num_additional_domains () =
   let task_chan = Multi_channel.make (num_additional_domains+1) in
   let rec worker () =
     match Multi_channel.recv task_chan with
-    | Quit -> Multi_channel.clear_local_state ();
+    | Quit -> Multi_channel.clear_local_state task_chan;
     | Task (t, p) ->
         do_task t p;
         worker ()
@@ -86,7 +86,7 @@ let teardown_pool pool =
   for _i=1 to Array.length pd.domains do
     Multi_channel.send pd.task_chan Quit
   done;
-  Multi_channel.clear_local_state ();
+  Multi_channel.clear_local_state pd.task_chan;
   Array.iter Domain.join pd.domains;
   (* Remove the pool from the table *)
   begin match pd.name with
