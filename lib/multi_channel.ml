@@ -77,7 +77,10 @@ let init_domain_state mchan dls_state =
 
 let get_local_state mchan =
   let dls_state = Domain.DLS.get dls_key in
-  if dls_state.id >= 0 then dls_state
+  if dls_state.id >= 0 then begin
+    assert (dls_state.id < Array.length mchan.channels);
+    dls_state
+  end
   else (init_domain_state mchan dls_state)
   [@@inline]
 
