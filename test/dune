@@ -52,12 +52,6 @@
 	(modes native))
 
 (test
-  (name task_exn)
-  (libraries domainslib)
-	(modules task_exn)
-	(modes native))
-
-(test
  (name task_throughput)
  (libraries domainslib)
  (modules task_throughput)
@@ -85,4 +79,10 @@
  (name test_task)
  (libraries domainslib)
  (modules test_task)
+ (modes native))
+
+(test
+ (name test_deadlock)
+ (libraries domainslib)
+ (modules test_deadlock)
  (modes native))

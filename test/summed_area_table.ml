@@ -30,7 +30,7 @@ let _ =
   let m = Array.make_matrix size size 1 (*Array.init size (fun _ -> Array.init size (fun _ -> Random.int size))*)
   in
   let pool = T.setup_pool ~num_additional_domains:(num_domains - 1) () in
-  let _ = calc_table pool m in
+  let _ = T.run pool (fun _ -> calc_table pool m) in
 
   (* for i = 0 to size-1 do
     for j = 0 to size-1 do
