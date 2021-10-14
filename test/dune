@@ -86,3 +86,9 @@
  (libraries domainslib)
  (modules test_deadlock)
  (modes native))
+
+(test
+ (name backtrace)
+ (libraries domainslib)
+ (modules backtrace)
+ (modes native))

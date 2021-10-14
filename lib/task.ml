@@ -19,7 +19,7 @@ type pool = pool_data option Atomic.t
 
 type 'a promise_state =
   Returned of 'a
-| Raised of exn
+| Raised of exn * Printexc.raw_backtrace
 | Pending of ((unit, unit) continuation * task_chan) list
 
 type 'a promise = 'a promise_state Atomic.t
@@ -32,12 +32,15 @@ let get_pool_data p =
   | Some p -> p
 
 let cont (k, c) = Multi_channel.send c (Work (continue k))
-let discont e (k, c) = Multi_channel.send c (Work (fun _ -> discontinue k e))
+let discont e bt (k, c) = Multi_channel.send c (Work (fun _ ->
+  discontinue_with_backtrace k e bt))
 
 let do_task f p =
   let action, result =
     try cont, Returned (f ())
-    with e -> discont e, Raised e
+    with e ->
+      let bt = Printexc.get_raw_backtrace () in
+      discont e bt, Raised (e, bt)
   in
   match Atomic.exchange p result with
   | Pending l -> List.iter action l
@@ -53,7 +56,7 @@ let rec await pool promise =
   let pd = get_pool_data pool in
   match Atomic.get promise with
   | Returned v -> v
-  | Raised e -> raise e
+  | Raised (e, bt) -> Printexc.raise_with_backtrace e bt
   | Pending _ ->
       perform (Wait (promise, pd.task_chan));
       await pool promise
@@ -95,7 +98,7 @@ let run (type a) pool (f : unit -> a) : a =
         end;
         loop ()
    | Returned v -> v
-   | Raised e -> raise e
+   | Raised (e, bt) -> Printexc.raise_with_backtrace e bt
   in
   loop ()
 
