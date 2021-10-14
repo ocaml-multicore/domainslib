@@ -3,69 +3,72 @@ open EffectHandlers.Deep
 
 type 'a task = unit -> 'a
 
-type 'a promise_state =
-  Returned of 'a
-| Raised of exn
-| Pending of (unit, unit) continuation list
-
-type 'a promise = 'a promise_state Atomic.t
-
 type message =
   Work of (unit -> unit)
 | Quit
 
+type task_chan = message Multi_channel.t
+
 type pool_data = {
   domains : unit Domain.t array;
-  task_chan : message Multi_channel.t;
+  task_chan : task_chan;
   name: string option
 }
 
 type pool = pool_data option Atomic.t
+
+type 'a promise_state =
+  Returned of 'a
+| Raised of exn
+| Pending of ((unit, unit) continuation * task_chan) list
+
+type 'a promise = 'a promise_state Atomic.t
+
+type _ eff += Wait : 'a promise * task_chan -> unit eff
 
 let get_pool_data p =
   match Atomic.get p with
   | None -> raise (Invalid_argument "pool already torn down")
   | Some p -> p
 
-let do_task pd f p =
-  try
-    let res = f () in
-    match Atomic.exchange p (Returned res) with
-    | Pending l ->
-        List.iter (fun k -> Multi_channel.send pd.task_chan (Work (continue k))) l
-    | _ -> failwith "Task.do_task: impossible (1)"
-  with e ->
-    begin match Atomic.exchange p (Raised e) with
-    | Pending l -> List.iter (fun k ->
-        Multi_channel.send pd.task_chan (Work (fun _ -> discontinue k e))) l
-    | _ -> failwith "Task.do_task: impossible (2)"
-    end
+let cont (k, c) = Multi_channel.send c (Work (continue k))
+let discont e (k, c) = Multi_channel.send c (Work (fun _ -> discontinue k e))
+
+let do_task f p =
+  let action, result =
+    try cont, Returned (f ())
+    with e -> discont e, Raised e
+  in
+  match Atomic.exchange p result with
+  | Pending l -> List.iter action l
+  |  _ -> failwith "Task.do_task: impossible, can only set result of task once"
 
 let async pool f =
   let pd = get_pool_data pool in
   let p = Atomic.make (Pending []) in
-  Multi_channel.send pd.task_chan (Work (fun _ -> do_task pd f p));
+  Multi_channel.send pd.task_chan (Work (fun _ -> do_task f p));
   p
 
-type _ eff += Wait : 'a promise -> unit eff
-
-let rec await promise =
+let rec await pool promise =
+  let pd = get_pool_data pool in
   match Atomic.get promise with
   | Returned v -> v
   | Raised e -> raise e
-  | Pending _ -> perform (Wait promise); await promise
+  | Pending _ ->
+      perform (Wait (promise, pd.task_chan));
+      await pool promise
 
 let step (type a) (f : a -> unit) (v : a) : unit =
   try_with f v
   { effc = fun (type a) (e : a eff) ->
       match e with
-      | Wait p -> Some (fun (k : (a, _) continuation) ->
+      | Wait (p,c) -> Some (fun (k : (a, _) continuation) ->
           let rec loop () =
             let old = Atomic.get p in
             match old with
             | Pending l ->
-                if Atomic.compare_and_set p old (Pending (k::l)) then ()
-                else loop ()
+                if Atomic.compare_and_set p old (Pending ((k,c)::l)) then ()
+                else (Domain.Sync.cpu_relax (); loop ())
             | Returned _ | Raised _ -> continue k ()
           in
           loop ())
@@ -79,7 +82,7 @@ let rec worker task_chan =
 let run (type a) pool (f : unit -> a) : a =
   let pd = get_pool_data pool in
   let p = Atomic.make (Pending []) in
-  step (do_task pd f) p;
+  step (do_task f) p;
   let rec loop () : a =
     match Atomic.get p with
     | Pending _ ->
@@ -166,7 +169,7 @@ let parallel_for_reduce ?(chunk_size=0) ~start ~finish ~body pool reduce_fun ini
       let d = s + ((e - s) / 2) in
       let p = async pool (fun _ -> work s d) in
       let right = work (d+1) e in
-      let left = await p in
+      let left = await pool p in
       reduce_fun left right
     end
   in
@@ -189,7 +192,7 @@ let parallel_for ?(chunk_size=0) ~start ~finish ~body pool =
       let d = s + ((e - s) / 2) in
       let left = async pool (fun _ -> work pool fn s d) in
       work pool fn (d+1) e;
-      await left
+      await pool left
     end
   in
   work pool body start finish

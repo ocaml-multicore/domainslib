@@ -20,12 +20,12 @@ let () =
     in
     let b = T.async pool (fun _ ->
       Printf.printf "Task B running on domain %d\n%!" (Domain.self () :> int);
-      T.await a)
+      T.await pool a)
     in
     let c = T.async pool (fun _ ->
       Printf.printf "Task C running on domain %d\n%!" (Domain.self () :> int);
-      T.await b)
+      T.await pool b)
     in
     loop n;
-    T.await c);
+    T.await pool c);
   T.teardown_pool pool

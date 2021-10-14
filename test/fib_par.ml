@@ -12,7 +12,7 @@ let rec fib_par pool n =
   else
     let a = T.async pool (fun _ -> fib_par pool (n-1)) in
     let b = T.async pool (fun _ -> fib_par pool (n-2)) in
-    T.await a + T.await b
+    T.await pool a + T.await pool b
 
 let main =
   let pool = T.setup_pool ~num_additional_domains:(num_domains - 1) () in

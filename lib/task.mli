@@ -40,8 +40,8 @@ val async : pool -> 'a task -> 'a promise
     returns a promise [r] in which the result of the task [t] will be stored.
   *)
 
-val await : 'a promise -> 'a
-(** [await r] waits for the promise to be resolved. If the task associated
+val await : pool -> 'a promise -> 'a
+(** [await p r] waits for the promise to be resolved. If the task associated
     with the promise had completed sucessfully, then the result of the task
     will be returned. If the task had raised an exception, then [await] raises
     the same exception.

@@ -29,7 +29,7 @@ module SquareMatrix = struct
     let b = Array.create_float n in
     let rec aux acc num_domains i =
       if (i = num_domains) then
-        (List.iter (fun e -> T.await e) acc)
+        (List.iter (fun e -> T.await pool e) acc)
       else begin
         aux ((T.async pool (fun _ -> copy_part a b i))::acc) num_domains (i+1)
       end
