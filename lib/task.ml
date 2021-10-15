@@ -20,24 +20,26 @@ type pool = pool_data option Atomic.t
 type 'a promise_state =
   Returned of 'a
 | Raised of exn * Printexc.raw_backtrace
-| Pending of ((unit, unit) continuation * task_chan) list
+| Pending of (('a, unit) continuation * task_chan) list
 
 type 'a promise = 'a promise_state Atomic.t
 
-type _ eff += Wait : 'a promise * task_chan -> unit eff
+type _ eff += Wait : 'a promise * task_chan -> 'a eff
 
 let get_pool_data p =
   match Atomic.get p with
   | None -> raise (Invalid_argument "pool already torn down")
   | Some p -> p
 
-let cont (k, c) = Multi_channel.send c (Work (continue k))
+let cont v (k, c) = Multi_channel.send c (Work (fun _ -> continue k v))
 let discont e bt (k, c) = Multi_channel.send c (Work (fun _ ->
   discontinue_with_backtrace k e bt))
 
-let do_task f p =
+let do_task (type a) (f : unit -> a) (p : a promise) : unit =
   let action, result =
-    try cont, Returned (f ())
+    try
+      let v = f () in
+      cont v, Returned v
     with e ->
       let bt = Printexc.get_raw_backtrace () in
       discont e bt, Raised (e, bt)
@@ -52,14 +54,12 @@ let async pool f =
   Multi_channel.send pd.task_chan (Work (fun _ -> do_task f p));
   p
 
-let rec await pool promise =
+let await pool promise =
   let pd = get_pool_data pool in
   match Atomic.get promise with
   | Returned v -> v
   | Raised (e, bt) -> Printexc.raise_with_backtrace e bt
-  | Pending _ ->
-      perform (Wait (promise, pd.task_chan));
-      await pool promise
+  | Pending _ -> perform (Wait (promise, pd.task_chan))
 
 let step (type a) (f : a -> unit) (v : a) : unit =
   try_with f v
@@ -72,7 +72,8 @@ let step (type a) (f : a -> unit) (v : a) : unit =
             | Pending l ->
                 if Atomic.compare_and_set p old (Pending ((k,c)::l)) then ()
                 else (Domain.Sync.cpu_relax (); loop ())
-            | Returned _ | Raised _ -> continue k ()
+            | Returned v -> continue k v
+            | Raised (e,bt) -> discontinue_with_backtrace k e bt
           in
           loop ())
       | _ -> None }
@@ -85,7 +86,7 @@ let rec worker task_chan =
 let run (type a) pool (f : unit -> a) : a =
   let pd = get_pool_data pool in
   let p = Atomic.make (Pending []) in
-  step (do_task f) p;
+  step (fun _ -> do_task f p) ();
   let rec loop () : a =
     match Atomic.get p with
     | Pending _ ->
