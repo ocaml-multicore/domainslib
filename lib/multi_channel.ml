@@ -149,7 +149,7 @@ let rec recv_poll_repeated mchan dls repeats =
     | Exit ->
       if repeats = 1 then raise Exit
       else begin
-        Domain.Sync.cpu_relax ();
+        Domain.cpu_relax ();
         recv_poll_repeated mchan dls (repeats - 1)
       end
 
