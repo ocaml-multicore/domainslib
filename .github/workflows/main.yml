@@ -24,6 +24,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
+      - name: Generate random number
+        id: random
+        shell: pwsh
+        run: Write-Output "::set-output name=number::$(Get-Random)"
+
       - name: Use OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v2
         with:
@@ -31,6 +36,7 @@ jobs:
           opam-repositories: |
             multicore: https://github.com/ocaml-multicore/multicore-opam.git
             default: https://github.com/ocaml/opam-repository.git
+          cache-prefix: ${{ steps.random.outputs.number }}
 
       - run: opam install . --deps-only
 
