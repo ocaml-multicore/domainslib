@@ -41,7 +41,7 @@ jobs:
             default: https://github.com/ocaml/opam-repository.git
           cache-prefix: ${{ steps.multicore_hash.outputs.commit }}
 
-      - run: opam install . --deps-only
+      - run: opam install . --deps-only --with-test
 
       - run: opam exec -- make all
 

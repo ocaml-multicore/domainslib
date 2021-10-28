@@ -189,7 +189,7 @@ module M : S = struct
       if Atomic.compare_and_set q.top t (t + 1) then
         release out
       else begin
-        Domain.Sync.cpu_relax ();
+        Domain.cpu_relax ();
         steal q
       end
 

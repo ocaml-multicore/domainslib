@@ -75,7 +75,7 @@ let rec await pool promise =
           | Task (t, p) -> do_task t p
           | Quit -> raise TasksActive
         with
-        | Exit -> Domain.Sync.cpu_relax ()
+        | Exit -> Domain.cpu_relax ()
       end;
       await pool promise
   | Some (Ok v) -> v
