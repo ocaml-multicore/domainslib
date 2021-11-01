@@ -71,7 +71,7 @@ let step (type a) (f : a -> unit) (v : a) : unit =
             match old with
             | Pending l ->
                 if Atomic.compare_and_set p old (Pending ((k,c)::l)) then ()
-                else (Domain.Sync.cpu_relax (); loop ())
+                else (Domain.cpu_relax (); loop ())
             | Returned v -> continue k v
             | Raised (e,bt) -> discontinue_with_backtrace k e bt
           in
@@ -95,7 +95,7 @@ let run (type a) pool (f : unit -> a) : a =
             match Multi_channel.recv_poll pd.task_chan with
             | Work f -> step f ()
             | Quit -> failwith "Task.run: tasks are active on pool"
-          with Exit -> Domain.Sync.cpu_relax ()
+          with Exit -> Domain.cpu_relax ()
         end;
         loop ()
    | Returned v -> v

@@ -9,7 +9,7 @@ let n = try int_of_string Sys.argv.(1) with _ -> 1_000_000
 let rec loop n =
   if n = 0 then
     Printf.printf "Looping finished on domain %d\n%!" (Domain.self () :> int)
-  else (Domain.Sync.cpu_relax (); loop (n-1))
+  else (Domain.cpu_relax (); loop (n-1))
 
 let () =
   let pool = T.setup_pool ~num_additional_domains:2 () in
