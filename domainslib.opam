@@ -12,6 +12,7 @@ depends: [
   "base-domains"
   "ocamlfind" {build}
   "dune" {build}
+  "mirage-clock-unix" {with-test}
 ]
 depopts: []
 build: [

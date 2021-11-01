@@ -53,7 +53,7 @@
 
 (test
  (name task_throughput)
- (libraries domainslib)
+ (libraries domainslib mirage-clock-unix)
  (modules task_throughput)
  (modes native))
 
