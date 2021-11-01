@@ -12,7 +12,7 @@ val setup_pool : ?name:string -> num_additional_domains:int -> unit -> pool
     including the current domain. If [name] is provided, the pool is mapped to
     [name] which can be looked up later with [lookup_pool name].
 
-    Raises [Invalid_argumet] when [num_additional_domains] is less than 0. *)
+    Raises {!Invalid_argument} when [num_additional_domains] is less than 0. *)
 
 val teardown_pool : pool -> unit
 (** Tears down the task execution pool. *)
