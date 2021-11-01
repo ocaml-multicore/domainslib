@@ -53,7 +53,7 @@ val parallel_for : ?chunk_size:int -> start:int -> finish:int ->
 (** [parallel_for c s f b p] behaves similar to [for i=s to f do b i done], but
     runs the for loop in parallel. The chunk size [c] determines the number of
     body applications done in one task; this will default to [max(1,
-    (finish-start + 1) / (8 * num_domains))]. Individual iterates may be run in
+    (finish-start + 1) / (8 * num_domains))]. Individual iterations may be run in
     any order. Tasks are distributed to workers using a divide-and-conquer
     scheme.
 
