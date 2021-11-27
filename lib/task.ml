@@ -1,33 +1,109 @@
+open EffectHandlers
+open EffectHandlers.Deep
+
 type 'a task = unit -> 'a
 
-type 'a promise = ('a, exn) result option Atomic.t
+type message =
+  Work of (unit -> unit)
+| Quit
 
-exception TasksActive
-
-type task_msg =
-  Task : 'a task * 'a promise -> task_msg
-| Quit : task_msg
+type task_chan = message Multi_channel.t
 
 type pool_data = {
   domains : unit Domain.t array;
-  task_chan : task_msg Multi_channel.t;
+  task_chan : task_chan;
   name: string option
 }
 
 type pool = pool_data option Atomic.t
 
-let do_task f p =
-  try
-    let res = f () in
-    Atomic.set p (Some (Ok res))
-  with e ->
-    Atomic.set p (Some (Error e));
-    match e with
-    | TasksActive -> raise e
-    | _ -> ()
+type 'a promise_state =
+  Returned of 'a
+| Raised of exn * Printexc.raw_backtrace
+| Pending of (('a, unit) continuation * task_chan) list
+
+type 'a promise = 'a promise_state Atomic.t
+
+type _ eff += Wait : 'a promise * task_chan -> 'a eff
+
+let get_pool_data p =
+  match Atomic.get p with
+  | None -> raise (Invalid_argument "pool already torn down")
+  | Some p -> p
+
+let cont v (k, c) = Multi_channel.send c (Work (fun _ -> continue k v))
+let discont e bt (k, c) = Multi_channel.send c (Work (fun _ ->
+  discontinue_with_backtrace k e bt))
+
+let do_task (type a) (f : unit -> a) (p : a promise) : unit =
+  let action, result =
+    try
+      let v = f () in
+      cont v, Returned v
+    with e ->
+      let bt = Printexc.get_raw_backtrace () in
+      discont e bt, Raised (e, bt)
+  in
+  match Atomic.exchange p result with
+  | Pending l -> List.iter action l
+  |  _ -> failwith "Task.do_task: impossible, can only set result of task once"
+
+let async pool f =
+  let pd = get_pool_data pool in
+  let p = Atomic.make (Pending []) in
+  Multi_channel.send pd.task_chan (Work (fun _ -> do_task f p));
+  p
+
+let await pool promise =
+  let pd = get_pool_data pool in
+  match Atomic.get promise with
+  | Returned v -> v
+  | Raised (e, bt) -> Printexc.raise_with_backtrace e bt
+  | Pending _ -> perform (Wait (promise, pd.task_chan))
+
+let step (type a) (f : a -> unit) (v : a) : unit =
+  try_with f v
+  { effc = fun (type a) (e : a eff) ->
+      match e with
+      | Wait (p,c) -> Some (fun (k : (a, _) continuation) ->
+          let rec loop () =
+            let old = Atomic.get p in
+            match old with
+            | Pending l ->
+                if Atomic.compare_and_set p old (Pending ((k,c)::l)) then ()
+                else (Domain.cpu_relax (); loop ())
+            | Returned v -> continue k v
+            | Raised (e,bt) -> discontinue_with_backtrace k e bt
+          in
+          loop ())
+      | _ -> None }
+
+let rec worker task_chan =
+  match Multi_channel.recv task_chan with
+  | Quit -> Multi_channel.clear_local_state ()
+  | Work f -> step f (); worker task_chan
+
+let run (type a) pool (f : unit -> a) : a =
+  let pd = get_pool_data pool in
+  let p = Atomic.make (Pending []) in
+  step (fun _ -> do_task f p) ();
+  let rec loop () : a =
+    match Atomic.get p with
+    | Pending _ ->
+        begin
+          try
+            match Multi_channel.recv_poll pd.task_chan with
+            | Work f -> step f ()
+            | Quit -> failwith "Task.run: tasks are active on pool"
+          with Exit -> Domain.cpu_relax ()
+        end;
+        loop ()
+   | Returned v -> v
+   | Raised (e, bt) -> Printexc.raise_with_backtrace e bt
+  in
+  loop ()
 
 let named_pools = Hashtbl.create 8
-
 let named_pools_mutex = Mutex.create ()
 
 let setup_pool ?name ~num_additional_domains () =
@@ -36,14 +112,9 @@ let setup_pool ?name ~num_additional_domains () =
     "Task.setup_pool: num_additional_domains must be at least 0")
   else
   let task_chan = Multi_channel.make (num_additional_domains+1) in
-  let rec worker () =
-    match Multi_channel.recv task_chan with
-    | Quit -> Multi_channel.clear_local_state ();
-    | Task (t, p) ->
-        do_task t p;
-        worker ()
+  let domains = Array.init num_additional_domains (fun _ ->
+    Domain.spawn (fun _ -> worker task_chan))
   in
-  let domains = Array.init num_additional_domains (fun _ -> Domain.spawn worker) in
   let p = Atomic.make (Some {domains; task_chan; name}) in
   begin match name with
     | None -> ()
@@ -53,33 +124,6 @@ let setup_pool ?name ~num_additional_domains () =
         Mutex.unlock named_pools_mutex
   end;
   p
-
-let get_pool_data p =
-  match Atomic.get p with
-  | None -> raise (Invalid_argument "pool already torn down")
-  | Some p -> p
-
-let async pool task =
-  let pd = get_pool_data pool in
-  let p = Atomic.make None in
-  Multi_channel.send pd.task_chan (Task(task,p));
-  p
-
-let rec await pool promise =
-  let pd = get_pool_data pool in
-  match Atomic.get promise with
-  | None ->
-      begin
-        try
-          match Multi_channel.recv_poll pd.task_chan with
-          | Task (t, p) -> do_task t p
-          | Quit -> raise TasksActive
-        with
-        | Exit -> Domain.cpu_relax ()
-      end;
-      await pool promise
-  | Some (Ok v) -> v
-  | Some (Error e) -> raise e
 
 let teardown_pool pool =
   let pd = get_pool_data pool in

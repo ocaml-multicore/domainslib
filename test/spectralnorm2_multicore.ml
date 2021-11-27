@@ -36,9 +36,10 @@ let eval_AtA_times_u pool u v =
 let () =
   let pool = T.setup_pool ~num_additional_domains:(num_domains - 1) () in
   let u = Array.make n 1.0  and  v = Array.make n 0.0 in
-  for _i = 0 to 9 do
-    eval_AtA_times_u pool u v; eval_AtA_times_u pool v u
-  done;
+  T.run pool (fun _ ->
+    for _i = 0 to 9 do
+      eval_AtA_times_u pool u v; eval_AtA_times_u pool v u
+    done);
   T.teardown_pool pool;
 
   let vv = ref 0.0  and  vBv = ref 0.0 in

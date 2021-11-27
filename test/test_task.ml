@@ -39,22 +39,24 @@ let prefix_sum pool = fun () ->
 let () =
   let pool1 = Task.setup_pool ~num_additional_domains:2 ~name:"pool1" () in
   let pool2 = Task.setup_pool ~num_additional_domains:2 ~name:"pool2" () in
-  let p1 = Option.get @@ Task.lookup_pool "pool1" in
-  modify_arr pool1 0 ();
-  modify_arr pool1 25 ();
-  modify_arr pool1 100 ();
-  inc_ctr p1 0 ();
-  inc_ctr p1 16 ();
-  inc_ctr p1 32 ();
-  inc_ctr p1 1000 ();
-  let p2 = Option.get @@ Task.lookup_pool "pool2" in
-  sum_sequence pool2 0 0 ();
-  sum_sequence pool2 10 10 ();
-  sum_sequence pool2 1 0 ();
-  sum_sequence p2 1 10 ();
-  sum_sequence p2 100 10 ();
-  sum_sequence p2 100 100 ();
-  prefix_sum p2 ();
+  Task.run pool1 (fun _ ->
+    let p1 = Option.get @@ Task.lookup_pool "pool1" in
+    modify_arr pool1 0 ();
+    modify_arr pool1 25 ();
+    modify_arr pool1 100 ();
+    inc_ctr p1 0 ();
+    inc_ctr p1 16 ();
+    inc_ctr p1 32 ();
+    inc_ctr p1 1000 ());
+  Task.run pool2 (fun _ ->
+    let p2 = Option.get @@ Task.lookup_pool "pool2" in
+    sum_sequence pool2 0 0 ();
+    sum_sequence pool2 10 10 ();
+    sum_sequence pool2 1 0 ();
+    sum_sequence p2 1 10 ();
+    sum_sequence p2 100 10 ();
+    sum_sequence p2 100 100 ();
+    prefix_sum p2 ());
   Task.teardown_pool pool1;
   Task.teardown_pool pool2;
 

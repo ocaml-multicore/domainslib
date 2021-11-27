@@ -10,6 +10,6 @@ let _ =
   let pool = T.setup_pool ~num_additional_domains:(num_domains - 1) () in
   let arr = gen n in
   let t = Unix.gettimeofday() in
-  let _ = prefix_sum pool arr in
+  ignore (T.run pool (fun _ -> prefix_sum pool arr));
   Printf.printf "Execution time: %fs\n" (Unix.gettimeofday() -. t);
   T.teardown_pool pool
