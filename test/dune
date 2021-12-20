@@ -88,6 +88,12 @@
  (modes native))
 
 (test
+ (name test_task_crash)
+ (libraries domainslib)
+ (modules test_task_crash)
+ (modes native))
+
+(test
  (name backtrace)
  (libraries domainslib)
  (modules backtrace)
