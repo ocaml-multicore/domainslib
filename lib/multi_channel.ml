@@ -25,14 +25,6 @@ type waiting_status =
   | Waiting
   | Released
 
-type 'a t = {
-  mask: int;
-  channels: 'a Ws_deque.t array;
-  waiters: (waiting_status ref * mutex_condvar ) Chan.t;
-  next_domain_id: int Atomic.t;
-  recv_block_spins: int;
-}
-
 type dls_state = {
   mutable id: int;
   mutable steal_offsets: int array;
@@ -40,7 +32,16 @@ type dls_state = {
   mc: mutex_condvar;
 }
 
-let dls_key =
+type 'a t = {
+  mask: int;
+  channels: 'a Ws_deque.t array;
+  waiters: (waiting_status ref * mutex_condvar ) Chan.t;
+  next_domain_id: int Atomic.t;
+  recv_block_spins: int;
+  dls_key: dls_state Domain.DLS.key;
+}
+
+let dls_make_key () =
   Domain.DLS.new_key (fun () ->
     {
       id = -1;
@@ -61,6 +62,7 @@ let make ?(recv_block_spins = 2048) n =
     waiters = Chan.make_unbounded ();
     next_domain_id = Atomic.make 0;
     recv_block_spins;
+    dls_key = dls_make_key ()
     }
 
 let register_domain mchan =
@@ -76,13 +78,16 @@ let init_domain_state mchan dls_state =
   [@@inline never]
 
 let get_local_state mchan =
-  let dls_state = Domain.DLS.get dls_key in
-  if dls_state.id >= 0 then dls_state
+  let dls_state = Domain.DLS.get mchan.dls_key in
+  if dls_state.id >= 0 then begin
+    assert (dls_state.id < Array.length mchan.channels);
+    dls_state
+  end
   else (init_domain_state mchan dls_state)
   [@@inline]
 
-let clear_local_state () =
-  let dls_state = Domain.DLS.get dls_key in
+let clear_local_state mchan =
+  let dls_state = Domain.DLS.get mchan.dls_key in
   dls_state.id <- (-1)
 
 let rec check_waiters mchan =

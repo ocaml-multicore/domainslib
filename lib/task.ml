@@ -80,7 +80,7 @@ let step (type a) (f : a -> unit) (v : a) : unit =
 
 let rec worker task_chan =
   match Multi_channel.recv task_chan with
-  | Quit -> Multi_channel.clear_local_state ()
+  | Quit -> Multi_channel.clear_local_state task_chan
   | Work f -> step f (); worker task_chan
 
 let run (type a) pool (f : unit -> a) : a =
@@ -130,7 +130,7 @@ let teardown_pool pool =
   for _i=1 to Array.length pd.domains do
     Multi_channel.send pd.task_chan Quit
   done;
-  Multi_channel.clear_local_state ();
+  Multi_channel.clear_local_state pd.task_chan;
   Array.iter Domain.join pd.domains;
   (* Remove the pool from the table *)
   begin match pd.name with
