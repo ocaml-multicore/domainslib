@@ -92,3 +92,9 @@
  (libraries domainslib)
  (modules backtrace)
  (modes native))
+
+(test
+ (name off_by_one)
+ (libraries domainslib)
+ (modules off_by_one)
+ (modes native))
