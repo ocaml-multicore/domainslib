@@ -203,21 +203,28 @@ let parallel_for ?(chunk_size=0) ~start ~finish ~body pool =
 
 let parallel_scan pool op elements =
   let pd = get_pool_data pool in
+  let n = Array.length elements in
+  let p = min (n - 1) ((Array.length pd.domains) + 1) in
+  let prefix_s = Array.copy elements in
   let scan_part op elements prefix_sum start finish =
     assert (Array.length elements > (finish - start));
     for i = (start + 1) to finish do
       prefix_sum.(i) <- op prefix_sum.(i - 1) elements.(i)
     done
   in
+  if p = 1 then begin
+    (* Do a sequential scan when number of domains is 1, array's length is 1
+    *)
+    scan_part op elements prefix_s 0 (n - 1);
+    prefix_s
+  end
+  else begin
   let add_offset op prefix_sum offset start finish =
     assert (Array.length prefix_sum > (finish - start));
     for i = start to finish do
       prefix_sum.(i) <- op offset prefix_sum.(i)
     done
   in
-  let n = Array.length elements in
-  let p = (Array.length pd.domains) + 1 in
-  let prefix_s = Array.copy elements in
 
   parallel_for pool ~chunk_size:1 ~start:0 ~finish:(p - 1)
   ~body:(fun i ->
@@ -243,3 +250,4 @@ let parallel_scan pool op elements =
     );
 
   prefix_s
+  end
