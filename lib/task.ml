@@ -225,7 +225,7 @@ let parallel_scan pool op elements =
     let e = (i + 1) * n / (p ) - 1 in
     scan_part op elements prefix_s s e);
 
-  if (p > 2) then begin
+  if (p > 1) then begin
   let x = ref prefix_s.(n/p - 1) in
   for i = 2 to p do
       let ind = i * n / p - 1 in
