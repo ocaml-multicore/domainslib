@@ -25,6 +25,7 @@ let main () =
   T.teardown_pool pool
 
 let _ =
+  Printexc.record_backtrace true;
   try main ()
   with _ ->
     let open Printexc in
