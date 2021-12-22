@@ -212,9 +212,9 @@ let parallel_scan pool op elements =
       prefix_sum.(i) <- op prefix_sum.(i - 1) elements.(i)
     done
   in
-  if p = 1 then begin
-    (* Do a sequential scan when number of domains is 1, array's length is 1
-    *)
+  if p < 2 then begin
+    (* Do a sequential scan when number of domains or array's length is less
+    than 2 *)
     scan_part op elements prefix_s 0 (n - 1);
     prefix_s
   end
@@ -232,14 +232,12 @@ let parallel_scan pool op elements =
     let e = (i + 1) * n / (p ) - 1 in
     scan_part op elements prefix_s s e);
 
-  if (p > 1) then begin
   let x = ref prefix_s.(n/p - 1) in
   for i = 2 to p do
       let ind = i * n / p - 1 in
       x := op prefix_s.(ind) !x;
       prefix_s.(ind) <- !x
-  done
-  end;
+  done;
 
   parallel_for pool ~chunk_size:1 ~start:1 ~finish:(p - 1)
   ~body:( fun i ->
