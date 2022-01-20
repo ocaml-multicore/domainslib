@@ -1,5 +1,5 @@
-open EffectHandlers
-open EffectHandlers.Deep
+open Effect
+open Effect.Deep
 
 type 'a task = unit -> 'a
 
