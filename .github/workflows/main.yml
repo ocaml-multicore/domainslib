@@ -15,8 +15,7 @@ jobs:
           - ubuntu-latest
           - macos-latest
         ocaml-compiler:
-          - 4.12.0+domains
-          - 4.12.0+domains+effects
+          - 5.00.0+trunk
 
     runs-on: ${{ matrix.os }}
 
@@ -24,22 +23,26 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Get latest Multicore commit hash
+      - name: Get latest OCaml commit hash
         id: multicore_hash
         shell: bash
         run: |
           curl -sH "Accept: application/vnd.github.v3+json" \
-          https://api.github.com/repos/ocaml-multicore/ocaml-multicore/commits/4.12+domains+effects \
+          https://api.github.com/repos/ocaml/ocaml/commits/trunk \
           | jq .commit.tree.sha | xargs printf '::set-output name=commit::%s'
-
       - name: Use OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: ocaml-variants.${{ matrix.ocaml-compiler }}
           opam-repositories: |
-            multicore: https://github.com/ocaml-multicore/multicore-opam.git
             default: https://github.com/ocaml/opam-repository.git
+            ocaml-beta-repository: https://github.com/ocaml/ocaml-beta-repository.git
           cache-prefix: ${{ steps.multicore_hash.outputs.commit }}
+          opam-depext: false
+
+      - run: opam pin add dune --dev-repo
+
+      - run: opam pin add ocamlfind git+https://github.com/ocaml/ocamlfind.git
 
       - run: opam install . --deps-only --with-test
 
