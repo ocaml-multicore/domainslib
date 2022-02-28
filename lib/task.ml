@@ -24,7 +24,7 @@ type 'a promise_state =
 
 type 'a promise = 'a promise_state Atomic.t
 
-type _ eff += Wait : 'a promise * task_chan -> 'a eff
+type _ t += Wait : 'a promise * task_chan -> 'a t
 
 let get_pool_data p =
   match Atomic.get p with
@@ -63,7 +63,7 @@ let await pool promise =
 
 let step (type a) (f : a -> unit) (v : a) : unit =
   try_with f v
-  { effc = fun (type a) (e : a eff) ->
+  { effc = fun (type a) (e : a t) ->
       match e with
       | Wait (p,c) -> Some (fun (k : (a, _) continuation) ->
           let rec loop () =
