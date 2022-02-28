@@ -9,9 +9,8 @@ dev-repo: "git+https://github.com/ocaml-multicore/domainslib.git"
 bug-reports: "https://github.com/ocaml-multicore/domainslib/issues"
 tags: []
 depends: [
-  "base-domains"
-  "ocamlfind" {build}
-  "dune" {build}
+  "ocaml" {>= "5.00"}
+  "dune" {>= "1.8"}
   "mirage-clock-unix" {with-test}
 ]
 depopts: []
