@@ -177,7 +177,9 @@ let parallel_for_reduce ?(chunk_size=0) ~start ~finish ~body pool reduce_fun ini
       reduce_fun left right
     end
   in
-  reduce_fun init (work start finish)
+  if finish < start
+  then init
+  else reduce_fun init (work start finish)
 
 let parallel_for ?(chunk_size=0) ~start ~finish ~body pool =
   let pd = get_pool_data pool in

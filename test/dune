@@ -94,6 +94,12 @@
  (modes native))
 
 (test
+ (name test_task_empty)
+ (libraries domainslib)
+ (modules test_task_empty)
+ (modes native))
+
+(test
  (name backtrace)
  (libraries domainslib)
  (modules backtrace)
