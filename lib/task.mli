@@ -1,7 +1,7 @@
 type 'a task = unit -> 'a
 (** Type of task *)
 
-type 'a promise
+type !'a promise
 (** Type of promises *)
 
 type pool
