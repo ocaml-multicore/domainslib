@@ -1,4 +1,4 @@
-type 'a t
+type !'a t
 (** The type of channels *)
 
 val make_bounded : int -> 'a t
