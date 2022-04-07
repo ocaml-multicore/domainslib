@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Ws_deque = Ws_deque.M
+module Ws_deque = Lockfree.Ws_deque.M
 
 type mutex_condvar = {
   mutex: Mutex.t;

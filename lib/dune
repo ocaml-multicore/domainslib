@@ -1,3 +1,4 @@
 (library
  (name domainslib)
- (public_name domainslib))
+ (public_name domainslib)
+ (libraries lockfree))

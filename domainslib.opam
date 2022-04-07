@@ -10,7 +10,8 @@ bug-reports: "https://github.com/ocaml-multicore/domainslib/issues"
 tags: []
 depends: [
   "ocaml" {>= "5.00"}
-  "dune" {>= "1.8"}
+  "dune" {>= "3.0"}
+  "lockfree" { >= "0.2.0"}
   "mirage-clock-unix" {with-test}
 ]
 depopts: []
