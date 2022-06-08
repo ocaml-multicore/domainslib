@@ -40,9 +40,7 @@ jobs:
           cache-prefix: ${{ steps.multicore_hash.outputs.commit }}
           opam-depext: false
 
-      - run: opam pin add dune --dev-repo
-
-      - run: opam pin add ocamlfind git+https://github.com/ocaml/ocamlfind.git
+      - run: opam repo add alpha git+https://github.com/kit-ty-kate/opam-alpha-repository
 
       - run: opam install . --deps-only --with-test
 
