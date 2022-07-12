@@ -1,2 +1,2 @@
 module Chan = Chan
-module Task = Task
+module Task = Task_seq
