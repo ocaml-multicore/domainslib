@@ -11,8 +11,8 @@ let work () =
   done
 ;;
 begin
-  let pool1 = Task.setup_pool ~num_additional_domains:2 () in
-  let pool2 = Task.setup_pool ~num_additional_domains:1 () in
+  let pool1 = Task.setup_pool ~num_domains:2 () in
+  let pool2 = Task.setup_pool ~num_domains:1 () in
 
   let pool1_prom0 = Task.async pool1 work in
 

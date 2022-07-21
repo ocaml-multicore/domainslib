@@ -17,7 +17,7 @@ let rec bar i =
   [@@inline never]
 
 let main () =
-  let pool = T.setup_pool ~num_additional_domains:0 () in
+  let pool = T.setup_pool ~num_domains:0 () in
   T.run pool (fun _ ->
     let p = T.async pool (fun _ -> bar 42) in
     T.await pool p;

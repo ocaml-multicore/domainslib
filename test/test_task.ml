@@ -37,8 +37,8 @@ let prefix_sum pool = fun () ->
 
 
 let () =
-  let pool1 = Task.setup_pool ~num_additional_domains:2 ~name:"pool1" () in
-  let pool2 = Task.setup_pool ~num_additional_domains:2 ~name:"pool2" () in
+  let pool1 = Task.setup_pool ~num_domains:2 ~name:"pool1" () in
+  let pool2 = Task.setup_pool ~num_domains:2 ~name:"pool2" () in
   Task.run pool1 (fun _ ->
     let p1 = Option.get @@ Task.lookup_pool "pool1" in
     modify_arr pool1 0 ();
@@ -68,6 +68,6 @@ let () =
   assert (Task.lookup_pool "pool1" = None);
 
   try
-    let _ = Task.setup_pool ~num_additional_domains:(-1) () in ()
+    let _ = Task.setup_pool ~num_domains:(-1) () in ()
   with Invalid_argument _ -> ();
   print_endline "ok"

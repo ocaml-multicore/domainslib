@@ -5,7 +5,7 @@ module T = Domainslib.Task
 
 let _ =
   (* use parallel_for_reduce *)
-  let p = T.setup_pool ~num_additional_domains:(num_domains - 1) () in
+  let p = T.setup_pool ~num_domains:(num_domains - 1) () in
   let sum = T.run p (fun _ ->
     T.parallel_for_reduce p (+) 0 ~chunk_size:(n/(4*num_domains)) ~start:0
       ~finish:(n-1) ~body:(fun _i -> 1))
@@ -16,7 +16,7 @@ let _ =
 
 let _ =
   (* explictly use empty pool and default chunk_size *)
-  let p = T.setup_pool ~num_additional_domains:0 () in
+  let p = T.setup_pool ~num_domains:0 () in
   let sum = Atomic.make 0 in
   T.run p (fun _ ->
     T.parallel_for p ~start:0 ~finish:(n-1)
@@ -28,7 +28,7 @@ let _ =
 
 let _ =
   (* configured num_domains and default chunk_size *)
-  let p = T.setup_pool ~num_additional_domains:(num_domains - 1) () in
+  let p = T.setup_pool ~num_domains:(num_domains - 1) () in
   let sum = Atomic.make 0 in
   T.run p (fun _ ->
     T.parallel_for p ~start:0 ~finish:(n-1)

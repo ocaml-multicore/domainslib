@@ -7,12 +7,12 @@ type !'a promise
 type pool
 (** Type of task pool *)
 
-val setup_pool : ?name:string -> num_additional_domains:int -> unit -> pool
-(** Sets up a task execution pool with [num_additional_domains + 1] domains
-    including the current domain. If [name] is provided, the pool is mapped to
-    [name] which can be looked up later with [lookup_pool name].
+val setup_pool : ?name:string -> num_domains:int -> unit -> pool
+(** Sets up a task execution pool with [num_domains] new domains. If [name] is
+    provided, the pool is mapped to [name] which can be looked up later with
+    [lookup_pool name].
 
-    Raises {!Invalid_argument} when [num_additional_domains] is less than 0. *)
+    Raises {!Invalid_argument} when [num_domains] is less than 0. *)
 
 val teardown_pool : pool -> unit
 (** Tears down the task execution pool. *)
