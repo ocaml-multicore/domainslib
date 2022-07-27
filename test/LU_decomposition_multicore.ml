@@ -54,7 +54,7 @@ let lup pool (a0 : float array) =
   a
 
 let () =
-  let pool = T.setup_pool ~num_additional_domains:(num_domains - 1) () in
+  let pool = T.setup_pool ~num_domains:(num_domains - 1) () in
   T.run pool (fun _ ->
     let a = parallel_create pool
       (fun _ _ -> (Random.State.float (Domain.DLS.get k) 100.0) +. 1.0 ) in

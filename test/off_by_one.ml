@@ -10,7 +10,7 @@ let print_array a =
 let r = Array.init 20 (fun i -> i + 1)
 
 let scan_task num_doms =
-  let pool = Task.setup_pool ~num_additional_domains:num_doms () in
+  let pool = Task.setup_pool ~num_domains:num_doms () in
   let a = Task.run pool (fun () -> Task.parallel_scan pool (+) (Array.make 20 1)) in
   Task.teardown_pool pool;
   Printf.printf "%i:  %s\n%!" num_doms (print_array a);

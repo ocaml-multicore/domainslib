@@ -12,7 +12,7 @@ let rec loop n =
   else (Domain.cpu_relax (); loop (n-1))
 
 let () =
-  let pool = T.setup_pool ~num_additional_domains:2 () in
+  let pool = T.setup_pool ~num_domains:2 () in
   T.run pool (fun _ ->
     let a = T.async pool (fun _ ->
       Printf.printf "Task A running on domain %d\n%!" (Domain.self () :> int);

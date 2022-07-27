@@ -106,13 +106,13 @@ let run (type a) pool (f : unit -> a) : a =
 let named_pools = Hashtbl.create 8
 let named_pools_mutex = Mutex.create ()
 
-let setup_pool ?name ~num_additional_domains () =
-  if num_additional_domains < 0 then
+let setup_pool ?name ~num_domains () =
+  if num_domains < 0 then
     raise (Invalid_argument
-    "Task.setup_pool: num_additional_domains must be at least 0")
+    "Task.setup_pool: num_domains must be at least 0")
   else
-  let task_chan = Multi_channel.make (num_additional_domains+1) in
-  let domains = Array.init num_additional_domains (fun _ ->
+  let task_chan = Multi_channel.make (num_domains+1) in
+  let domains = Array.init num_domains (fun _ ->
     Domain.spawn (fun _ -> worker task_chan))
   in
   let p = Atomic.make (Some {domains; task_chan; name}) in
