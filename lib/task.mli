@@ -67,8 +67,8 @@ val parallel_for_reduce : ?chunk_size:int -> start:int -> finish:int ->
 (** [parallel_for_reduce c s f b p r i] is similar to [parallel_for] except
     that the result returned by each iteration is reduced with [r] with initial
     value [i]. The reduce operations are performed in an arbitrary order and
-    the reduce function needs to be commutative and associative in order to
-    obtain a deterministic result.
+    the reduce function needs to be associative in order to obtain a
+    deterministic result.
 
     Must be called with a call to {!run} in the dynamic scope to handle the
     internal algebraic effects for task synchronization. *)
@@ -79,7 +79,7 @@ val parallel_scan : pool -> ('a -> 'a -> 'a) -> 'a array -> 'a array
     and/or the domains in the pool [p]. Scan is similar to [Array.fold_left]
     but returns an array of reduced intermediate values. The reduce operations
     are performed in an arbitrary order and the reduce function needs to be
-    commutative and associative in order to obtain a deterministic result.
+    associative in order to obtain a deterministic result.
 
     Must be called with a call to {!run} in the dynamic scope to handle the
     internal algebraic effects for task synchronization. *)
