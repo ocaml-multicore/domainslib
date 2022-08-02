@@ -12,6 +12,10 @@ val setup_pool : ?name:string -> num_domains:int -> unit -> pool
     provided, the pool is mapped to [name] which can be looked up later with
     [lookup_pool name].
 
+    When [num_domains] is 0, the new pool will be empty, and when an empty
+    pool is in use, every function in this module will run effectively
+    sequentially, using the calling domain as the only available domain.
+
     Raises {!Invalid_argument} when [num_domains] is less than 0. *)
 
 val teardown_pool : pool -> unit
