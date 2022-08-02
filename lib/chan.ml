@@ -25,7 +25,7 @@ let mutex_condvar_key =
     {mutex=m; condition=c})
 
 let make_bounded n =
-  if n < 0 then raise (Invalid_argument "Chan.make_bounded") ;
+  if n < 0 then invalid_arg "Chan.make_bounded" ;
   {buffer_size= Some n;
    contents = Atomic.make (Empty {receivers= Fun_queue.empty; })}
 
