@@ -28,7 +28,7 @@ type _ t += Wait : 'a promise * task_chan -> 'a t
 
 let get_pool_data p =
   match Atomic.get p with
-  | None -> raise (Invalid_argument "pool already torn down")
+  | None -> invalid_arg "pool already torn down"
   | Some p -> p
 
 let cont v (k, c) = Multi_channel.send c (Work (fun _ -> continue k v))
@@ -108,8 +108,7 @@ let named_pools_mutex = Mutex.create ()
 
 let setup_pool ?name ~num_domains () =
   if num_domains < 0 then
-    raise (Invalid_argument
-    "Task.setup_pool: num_domains must be at least 0")
+    invalid_arg "Task.setup_pool: num_domains must be at least 0"
   else
   let task_chan = Multi_channel.make (num_domains+1) in
   let domains = Array.init num_domains (fun _ ->
