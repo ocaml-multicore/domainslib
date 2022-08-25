@@ -9,14 +9,14 @@ let c = C.make_bounded buffer_size
 
 let rec receiver i n =
   if i = n then
-    print_endline @@ Printf.sprintf "Receiver on domain %d done" (Domain.self () :> int)
+    print_endline @@ Printf.sprintf "Receiver on domain %d done" 1
   else (
     ignore @@ C.recv c;
     receiver (i+1) n )
 
 let rec sender i n =
   if i = n then
-    print_endline @@ Printf.sprintf "Sender on domain %d done" (Domain.self () :> int)
+    print_endline @@ Printf.sprintf "Sender on domain %d done" 1
   else (
     C.send c i;
     sender (i+1) n )
@@ -24,16 +24,12 @@ let rec sender i n =
 let _ =
   assert (num_items mod num_senders == 0);
   assert (num_items mod num_receivers == 0);
-  let senders =
-    Array.init num_senders (fun _ ->
-      Domain.spawn (fun _ -> sender 0 (num_items / num_senders)))
+  let _ =
+    Array.init num_senders (fun _ -> sender 0 (num_items / num_senders))
   in
-  let receivers =
-    Array.init num_receivers (fun _ ->
-      Domain.spawn (fun _ -> receiver 0 (num_items / num_receivers)))
+  let _ =
+    Array.init num_receivers (fun _ -> receiver 0 (num_items / num_receivers))
   in
-  Array.iter Domain.join senders;
-  Array.iter Domain.join receivers;
   begin match C.recv_poll c with
   | None -> ()
   | Some _ -> assert false

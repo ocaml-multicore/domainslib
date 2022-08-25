@@ -1,20 +1,20 @@
 
 (** Pool has only one domain, do nothing *)
-open Effect
-open Effect.Deep
+(* open Effect
+open Effect.Deep *)
 
 type pool = {name: string option; mutable active: bool}
 
 type 'a promise_state =
   Returned of 'a
 | Raised of exn * Printexc.raw_backtrace
-| Pending of (('a, unit) continuation) list
+| Pending of 'a list
 
 type 'a promise = 'a promise_state ref
 
 type 'a task = unit -> 'a
 
-type _ t += Wait : 'a promise -> 'a t
+(* type _ t += Wait : 'a promise -> 'a t *)
 
 let named_pools = Hashtbl.create 8
 
@@ -62,12 +62,12 @@ let async pool f =
   do_task f p;
   p
 
-let await pool promise =
+let rec await pool promise =
   assert (get_pool_data pool);
   match !promise with
   | Returned v -> v
   | Raised (e, bt) -> Printexc.raise_with_backtrace e bt
-  | Pending _ -> perform (Wait promise)
+  | Pending _ -> await pool promise
 
 let run pool f =
   assert (get_pool_data pool);

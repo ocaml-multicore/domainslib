@@ -8,22 +8,22 @@ let n = try int_of_string Sys.argv.(1) with _ -> 1_000_000
 
 let rec loop n =
   if n = 0 then
-    Printf.printf "Looping finished on domain %d\n%!" (Domain.self () :> int)
-  else (Domain.cpu_relax (); loop (n-1))
+    Printf.printf "Looping finished on domain %d\n%!" 0
+  else ( loop (n-1))
 
 let () =
   let pool = T.setup_pool ~num_additional_domains:2 () in
   T.run pool (fun _ ->
     let a = T.async pool (fun _ ->
-      Printf.printf "Task A running on domain %d\n%!" (Domain.self () :> int);
+      Printf.printf "Task A running on domain %d\n%!" 0;
       loop n)
     in
     let b = T.async pool (fun _ ->
-      Printf.printf "Task B running on domain %d\n%!" (Domain.self () :> int);
+      Printf.printf "Task B running on domain %d\n%!" 0;
       T.await pool a)
     in
     let c = T.async pool (fun _ ->
-      Printf.printf "Task C running on domain %d\n%!" (Domain.self () :> int);
+      Printf.printf "Task C running on domain %d\n%!" 0;
       T.await pool b)
     in
     loop n;

@@ -7,5 +7,5 @@ let _ =
   let p = T.setup_pool ~num_additional_domains:(num_domains - 1) () in
   T.run p (fun _ ->
     T.parallel_for p ~start:0 ~finish:(n-1) ~chunk_size:16 ~body:(fun i ->
-      print_string @@ Printf.sprintf "[%d] %d\n%!" (Domain.self () :> int) i));
+      print_string @@ Printf.sprintf "%d\n%!" i));
   T.teardown_pool p
