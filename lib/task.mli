@@ -87,3 +87,20 @@ val parallel_scan : pool -> ('a -> 'a -> 'a) -> 'a array -> 'a array
 
     Must be called with a call to {!run} in the dynamic scope to handle the
     internal algebraic effects for task synchronization. *)
+
+val parallel_find : ?chunk_size:int -> start:int -> finish:int ->
+  body:(int -> 'a option) -> pool -> 'a option
+(** [parallel_find ~start ~finish ~body pool] calls [body] in parallel
+    on the indices from [start] to [finish], in any order, until at
+    least one of them returns [Some v].
+
+    Search stops when a value is found, but there is no guarantee that
+    it stops as early as possible, other calls to [body] may happen in
+    parallel or afterwards.
+
+    See {!parallel_for} for the description of the [chunk_size]
+    parameter and the scheduling strategy.
+
+    Must be called with a call to {!run} in the dynamic scope to
+    handle the internal algebraic effects for task synchronization.
+*)
