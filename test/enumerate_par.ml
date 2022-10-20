@@ -1,5 +1,5 @@
-let num_domains = try int_of_string Sys.argv.(1) with _ -> 1
-let n = try int_of_string Sys.argv.(2) with _ -> 100
+let n = try int_of_string Sys.argv.(1) with _ -> 100
+let num_domains = try int_of_string Sys.argv.(2) with _ -> 1
 
 module T = Domainslib.Task
 

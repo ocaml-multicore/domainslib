@@ -1,6 +1,6 @@
 module T = Domainslib.Task
-let num_domains = try int_of_string Sys.argv.(1) with _ -> 4
-let size = try int_of_string Sys.argv.(2) with _ -> 100
+let size = try int_of_string Sys.argv.(1) with _ -> 100
+let num_domains = try int_of_string Sys.argv.(2) with _ -> 4
 
 let transpose a =
   let r = Array.length a in

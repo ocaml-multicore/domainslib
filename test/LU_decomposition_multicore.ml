@@ -1,6 +1,6 @@
 module T = Domainslib.Task
-let num_domains = try int_of_string Sys.argv.(1) with _ -> 1
-let mat_size = try int_of_string Sys.argv.(2) with _ -> 1200
+let mat_size = try int_of_string Sys.argv.(1) with _ -> 1200
+let num_domains = try int_of_string Sys.argv.(2) with _ -> 1
 
 let k = Domain.DLS.new_key Random.State.make_self_init
 
