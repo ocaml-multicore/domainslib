@@ -7,10 +7,11 @@ type !'a promise
 type pool
 (** Type of task pool *)
 
-val setup_pool : ?name:string -> num_domains:int -> unit -> pool
+val setup_pool : ?name:string -> ?num_domains:int -> unit -> pool
 (** Sets up a task execution pool with [num_domains] new domains. If [name] is
     provided, the pool is mapped to [name] which can be looked up later with
-    [lookup_pool name].
+    [lookup_pool name]. [~num_domains] defaults to
+    [Domain.recommended_domain_count () - 1].
 
     When [num_domains] is 0, the new pool will be empty, and when an empty
     pool is in use, every function in this module will run effectively
