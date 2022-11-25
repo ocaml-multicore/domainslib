@@ -35,6 +35,15 @@ let cont v (k, c) = Multi_channel.send c (Work (fun _ -> continue k v))
 let discont e bt (k, c) = Multi_channel.send c (Work (fun _ ->
   discontinue_with_backtrace k e bt))
 
+let promise () =
+  let p = Atomic.make (Pending []) in
+  let set result =
+    match Atomic.exchange p (Returned result) with
+    | Pending l -> List.iter (cont result) l
+    |  _ -> failwith "Task.promise: can only set result of task once"
+  in
+  p, set
+
 let do_task (type a) (f : unit -> a) (p : a promise) : unit =
   let action, result =
     try
