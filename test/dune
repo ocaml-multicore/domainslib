@@ -5,6 +5,12 @@
  (modes native))
 
 (test
+ (name bench_mpmc_queue)
+ (libraries domainslib unix)
+ (modules mpmc_queue bench_mpmc_queue)
+ (modes native))
+
+(test
  (name fib)
  (modules fib)
  (modes native))
