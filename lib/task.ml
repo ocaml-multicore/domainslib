@@ -24,7 +24,9 @@ type 'a promise_state =
 
 type 'a promise = 'a promise_state Atomic.t
 
-type _ t += Wait : 'a promise * task_chan -> 'a t
+type _ t +=
+  | Wait : 'a promise * task_chan -> 'a t
+  | Yield : task_chan -> unit t
 
 let get_pool_data p =
   match Atomic.get p with
@@ -61,6 +63,10 @@ let await pool promise =
   | Raised (e, bt) -> Printexc.raise_with_backtrace e bt
   | Pending _ -> perform (Wait (promise, pd.task_chan))
 
+let yield pool =
+  let pd = get_pool_data pool in
+  perform (Yield pd.task_chan)
+
 let step (type a) (f : a -> unit) (v : a) : unit =
   try_with f v
   { effc = fun (type a) (e : a t) ->
@@ -76,6 +82,7 @@ let step (type a) (f : a -> unit) (v : a) : unit =
             | Raised (e,bt) -> discontinue_with_backtrace k e bt
           in
           loop ())
+      | Yield c -> Some (fun (k : (a, _) continuation) -> cont () (k, c))
       | _ -> None }
 
 let rec worker task_chan =
