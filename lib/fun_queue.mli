@@ -12,5 +12,5 @@ val push : 'a t -> 'a -> 'a t
 
 val pop : 'a t -> ('a * 'a t) option
 (** [pop q] returns [None] if the queue is empty. If the queue is non-empty, it
- * returns [Some (v,q')] where [v] is the element popped from the head of [q]
- * and [q'] is the rest of the queue. *)
+    returns [Some (v,q')] where [v] is the element popped from the head of [q]
+    and [q'] is the rest of the queue. *)
