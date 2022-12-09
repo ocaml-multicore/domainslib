@@ -41,8 +41,7 @@ val run : pool -> 'a task -> 'a
 
 val async : pool -> 'a task -> 'a promise
 (** [async p t] runs the task [t] asynchronously in the pool [p]. The function
-    returns a promise [r] in which the result of the task [t] will be stored.
-  *)
+    returns a promise [r] in which the result of the task [t] will be stored. *)
 
 val await : pool -> 'a promise -> 'a
 (** [await p r] waits for the promise [r] to be resolved. During the resolution,
