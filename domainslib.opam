@@ -13,7 +13,6 @@ depends: [
   "dune" {>= "3.0"}
   "lockfree" { >= "0.2.0"}
   "mirage-clock-unix" {with-test}
-  "ppx_deriving" {with-test & >= "5.2.1"}
   "qcheck-core" {with-test & >= "0.20"}
   "qcheck-multicoretests-util" {with-test & >= "0.1"}
   "qcheck-stm" {with-test & >= "0.1"}

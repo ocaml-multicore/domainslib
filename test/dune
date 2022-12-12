@@ -117,14 +117,12 @@
  (name task_one_dep)
  (modules task_one_dep)
  (libraries qcheck-multicoretests-util qcheck-core qcheck-core.runner domainslib)
- (preprocess (pps ppx_deriving.show))
  (action (run %{test} --verbose)))
 
 (test
  (name task_more_deps)
  (modules task_more_deps)
  (libraries qcheck-multicoretests-util qcheck-core qcheck-core.runner domainslib)
- (preprocess (pps ppx_deriving.show))
  (action (run %{test} --verbose)))
 
 (test
@@ -139,5 +137,4 @@
  (name chan_stm_tests)
  (modules chan_stm_tests)
  (libraries qcheck-stm.sequential qcheck-stm.domain domainslib)
- (preprocess (pps ppx_deriving.show))
  (action (run %{test} --verbose)))
