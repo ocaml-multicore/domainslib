@@ -15,8 +15,8 @@ depends: [
   "mirage-clock-unix" {with-test}
   "ppx_deriving" {with-test & >= "5.2.1"}
   "qcheck-core" {with-test & >= "0.20"}
-  "qcheck-multicoretests-util" {with-test & >= "0.1.0"}
-  "qcheck-stm" {with-test & >= "0.1.0"}
+  "qcheck-multicoretests-util" {with-test & >= "0.1"}
+  "qcheck-stm" {with-test & >= "0.1"}
 ]
 depopts: []
 build: [
