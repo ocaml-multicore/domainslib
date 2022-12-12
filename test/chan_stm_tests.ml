@@ -12,7 +12,13 @@ struct
     | Send of int
     | Send_poll of int
     | Recv
-    | Recv_poll [@@deriving show { with_path = false }]
+    | Recv_poll
+
+  let show_cmd c = match c with
+    | Send i -> "Send" ^ (string_of_int i)
+    | Send_poll i -> "Send_poll" ^ (string_of_int i)
+    | Recv -> "Recv"
+    | Recv_poll -> "Recv_poll"
 
   let capacity = 8
 

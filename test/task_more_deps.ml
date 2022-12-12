@@ -40,7 +40,12 @@ type test_input =
     num_domains  : int;
     length       : int;
     dependencies : int list array
-  } [@@deriving show { with_path = false }]
+  }
+
+let show_test_input t =
+  Printf.sprintf
+    "{ num_domains : %i\n  length : %i\n  dependencies : %s }"
+    t.num_domains t.length Print.(array (list int) t.dependencies)
 
 let shrink_deps test_input =
   let ls = Array.to_list test_input.dependencies in
