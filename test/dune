@@ -110,3 +110,8 @@
  (libraries domainslib)
  (modules off_by_one)
  (modes native))
+
+(test
+ (name test_yield)
+ (libraries domainslib)
+ (modules test_yield))

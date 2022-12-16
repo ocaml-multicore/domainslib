@@ -139,7 +139,7 @@ let rec recv_poll_loop mchan dls cur_offset =
 
 let recv_poll_with_dls mchan dls =
   try
-    Ws_deque.pop (Array.unsafe_get mchan.channels dls.id)
+    Ws_deque.steal (Array.unsafe_get mchan.channels dls.id)
   with
     | Exit -> recv_poll_loop mchan dls 0
   [@@inline]
