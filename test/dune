@@ -4,10 +4,10 @@
  (modules test_chan)
  (modes native))
 
-(test
- (name bench_mpmc_queue)
+(tests
+ (names bench_mpmc_queue batched_counter bench_batched_counter)
  (libraries domainslib unix)
- (modules mpmc_queue bench_mpmc_queue)
+ (modules mpmc_queue bench_mpmc_queue batched_counter bench_batched_counter)
  (modes native))
 
 (test
@@ -41,10 +41,10 @@
 (test
  (name LU_decomposition_multicore)
  (libraries domainslib)
- (flags (:standard -runtime-variant d))
+ (flags
+  (:standard -runtime-variant d))
  (modules LU_decomposition_multicore)
  (modes native))
-
 
 (test
  (name spectralnorm2)
@@ -52,10 +52,10 @@
  (modes native))
 
 (test
-  (name sum_par)
-  (libraries domainslib)
-	(modules sum_par)
-	(modes native))
+ (name sum_par)
+ (libraries domainslib)
+ (modules sum_par)
+ (modes native))
 
 (test
  (name task_throughput)
@@ -144,3 +144,9 @@
  (modules chan_stm_tests)
  (libraries qcheck-stm.sequential qcheck-stm.domain domainslib)
  (action (run %{test} --verbose)))
+
+; (test
+;  (name batched_counter)
+;  (libraries domainslib unix)
+;  (modules batched_counter mpmc_queue)
+;  (modes native))
