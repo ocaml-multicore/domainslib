@@ -112,7 +112,7 @@ module BatchedCounter : S = struct
     T.await pool pr
 end
 
-module ParCounter : S = struct
+module LockfreeCounter : S = struct
   include CounterBase
   let increment _pool t =
     Atomic.incr t.counter
