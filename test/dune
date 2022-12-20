@@ -110,3 +110,31 @@
  (libraries domainslib)
  (modules off_by_one)
  (modes native))
+
+;; Custom property-based tests using QCheck
+
+(test
+ (name task_one_dep)
+ (modules task_one_dep)
+ (libraries qcheck-multicoretests-util qcheck-core qcheck-core.runner domainslib)
+ (action (run %{test} --verbose)))
+
+(test
+ (name task_more_deps)
+ (modules task_more_deps)
+ (libraries qcheck-multicoretests-util qcheck-core qcheck-core.runner domainslib)
+ (action (run %{test} --verbose)))
+
+(test
+ (name task_parallel)
+ (modules task_parallel)
+ (libraries qcheck-multicoretests-util qcheck-core qcheck-core.runner domainslib)
+ (action (run %{test} --verbose)))
+
+;; STM_sequential and STM_domain test of Domainslib.Chan
+
+(test
+ (name chan_stm_tests)
+ (modules chan_stm_tests)
+ (libraries qcheck-stm.sequential qcheck-stm.domain domainslib)
+ (action (run %{test} --verbose)))
