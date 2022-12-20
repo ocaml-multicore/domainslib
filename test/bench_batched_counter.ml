@@ -3,7 +3,7 @@ module T = Domainslib.Task
 let nb = 1_000_000
 let domains = Domain.recommended_domain_count () - 1
 
-module Bench (C : Batched_counter.BCounter) = struct
+module Bench (C : Batched_counter.Counter) = struct
 
   let test ~pool () =
     let t = C.create nb in
@@ -28,8 +28,10 @@ module Bench (C : Batched_counter.BCounter) = struct
     Format.printf "@."
 end
 
+module Bench_ParCounter = Bench (Batched_counter.ParCounter)
+module Bench_LockCounter = Bench (Batched_counter.LockCounter)
 module Bench_BC_MPMC = Bench (Batched_counter.BC_MPMC)
-module Bench_BCArray = Bench (Batched_counter.BCArray)
+(* module Bench_BCArray = Bench (Batched_counter.BCArray) *)
 
 let () = 
   Format.printf "@." ;
@@ -38,9 +40,9 @@ let () =
     Format.printf " %5i   " i
   done ;
   Format.printf "@." ;
-  Format.printf "  MPMC: " ;
+  (* Format.printf "  ParCounter: " ;
+  Bench_ParCounter.run ();
+  Format.printf " LockCounter: " ;
+  Bench_LockCounter.run () ; *)
+  Format.printf " BATCHED_MPMC: " ;
   Bench_BC_MPMC.run () ;
-  Format.printf " Array: " ;
-  Bench_BCArray.run () ;
-  (* Format.printf "       Chan: " ;
-  Bench_chan.run () *)
