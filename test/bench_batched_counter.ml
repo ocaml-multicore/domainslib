@@ -1,13 +1,13 @@
 module T = Domainslib.Task
 
-let nb = 1_000_000
+let nb = 10_000
 let domains = Domain.recommended_domain_count () - 1
 
-module Bench (C : Batched_counter.Counter) = struct
+module Bench (C : Counters.S) = struct
 
   let test ~pool () =
     let t = C.create nb in
-    T.run pool (fun () -> 
+    T.run pool (fun () ->
         T.parallel_for pool ~start:1 ~finish:nb ~body:(fun _ -> C.increment pool t)
       );
     assert (C.unsafe_get t = nb)
@@ -28,21 +28,21 @@ module Bench (C : Batched_counter.Counter) = struct
     Format.printf "@."
 end
 
-module Bench_ParCounter = Bench (Batched_counter.ParCounter)
-module Bench_LockCounter = Bench (Batched_counter.LockCounter)
-module Bench_BC_MPMC = Bench (Batched_counter.BC_MPMC)
-(* module Bench_BCArray = Bench (Batched_counter.BCArray) *)
+module Bench_BC_MPMC = Bench (Counters.BatchedCounter)
+module Bench_ParCounter = Bench (Counters.ParCounter)
+module Bench_LockCounter = Bench (Counters.LockCounter)
 
-let () = 
+let () =
   Format.printf "@." ;
-  Format.printf "num_domains: " ;
+  Format.printf "    num_domains: " ;
   for i = 1 to domains do
     Format.printf " %5i   " i
   done ;
   Format.printf "@." ;
-  (* Format.printf "  ParCounter: " ;
-  Bench_ParCounter.run ();
-  Format.printf " LockCounter: " ;
-  Bench_LockCounter.run () ; *)
-  Format.printf " BATCHED_MPMC: " ;
+  Format.printf "BatchedCounter: " ;
   Bench_BC_MPMC.run () ;
+  Format.printf "    ParCounter: " ;
+  Bench_ParCounter.run ();
+  Format.printf "   LockCounter: " ;
+  Bench_LockCounter.run ()
+
