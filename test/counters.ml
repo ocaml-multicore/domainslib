@@ -1,35 +1,16 @@
-(* module Atomic = struct *)
-(*   include Atomic *)
-
-(*   let n = 0.0001 *)
-(*   let get t = Unix.sleepf n; Atomic.get t *)
-(*   let incr t = Unix.sleepf n; Atomic.incr t *)
-(*   let decr t = Unix.sleepf n; Atomic.decr t *)
-(*   let fetch_and_add t = Unix.sleepf n; Atomic.fetch_and_add t *)
-(*   let set t = Unix.sleepf n; Atomic.set t *)
-(* end *)
-
 module T = Domainslib.Task
+module Atomic = struct
+  include Atomic
 
-module type CounterBaseS = sig
-  module Q = Mpmc_queue
-  type t =  {
-    counter : int Atomic.t;
-    running : bool Atomic.t;
-    lock : Mutex.t;
-    q : batch_op Q.t;
-    container : batch_op array
-  } and
-  batch_op =
-      | Incr of t * (unit -> unit)
-      | Decr of t * (unit -> unit)
-      | Get of t * (int -> unit)
-      | Null
-  val create : int -> t
-  val unsafe_get : t -> int
+  let n = 0.0001
+  let get t = Unix.sleepf n; Atomic.get t
+  let incr t = Unix.sleepf n; Atomic.incr t
+  let decr t = Unix.sleepf n; Atomic.decr t
+  let fetch_and_add t = Unix.sleepf n; Atomic.fetch_and_add t
+  let set t = Unix.sleepf n; Atomic.set t
 end
 
-module CounterBase : CounterBaseS = struct
+module CounterBase = struct
   module Q = Mpmc_queue
   type t = {
     counter : int Atomic.t;
@@ -44,15 +25,21 @@ module CounterBase : CounterBaseS = struct
     | Decr of t * (unit -> unit)
     | Get of t * (int -> unit)
     | Null
+      
+  let stats : (int, int) Hashtbl.t = Hashtbl.create 100
 
   let create n =
-    {counter = Atomic.make 0; running = Atomic.make false; q = Q.make (); container = Array.make n Null; lock = Mutex.create ()}
+    {counter = Atomic.make 0;
+     running = Atomic.make false;
+     q = Q.make ();
+     container = Array.make n Null;
+     lock = Mutex.create ()}
 
   let unsafe_get t = Atomic.get t.counter
 end
 
 module type S = sig
-  include CounterBaseS
+  include module type of CounterBase
   val increment : T.pool -> t -> unit
   val decrement : T.pool -> t -> unit
   val get : T.pool -> t -> int
@@ -85,10 +72,10 @@ module BatchedCounter : S = struct
          do () done;
          let batch = Array.init !i (fun i -> t.container.(i)) in
          par_prefix_sums pool t batch;
-         (* let count = Atomic.get t.counter in *)
-         (* (Domain.self () :> int) |> Printf.printf "Domain launching %d\n"; *)
-         (* Printf.printf "Diff = %d; count = %d\n%!" !i count; *)
-         (* par_prefix_sumsv1 pool 0 !i; *)
+         (* Printf.printf "Batch size = %d%!\n" !i; *)
+         (match Hashtbl.find_opt stats !i with
+         | Some cnt -> Hashtbl.replace stats !i (cnt + 1)
+         | None -> Hashtbl.add stats !i 1);
          Atomic.set t.running false;
          try_launch pool t)
       | None -> Atomic.set t.running false
@@ -143,3 +130,15 @@ module LockCounter : S = struct
     Mutex.unlock t.lock;
     res
 end
+
+let () =
+  let open BatchedCounter in
+  let n = 1_000_000 in
+  let t = create n in
+  let pool = T.setup_pool ~num_domains:7 () in
+  T.run pool (fun () ->
+    T.parallel_for pool ~start:1 ~finish:n ~body:
+      (fun _ -> increment pool t)
+    );
+  Hashtbl.iter (fun x y -> Printf.printf "%d -> %d\n" x y) stats;
+  T.teardown_pool pool
