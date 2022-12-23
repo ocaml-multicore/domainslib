@@ -101,11 +101,17 @@ end
 
 module LockfreeCounter : S = struct
   include CounterBase
-  let increment _pool t =
-    Atomic.incr t.counter
+  let rec increment _pool t =
+    let v = Atomic.get t.counter in
+    if Atomic.compare_and_set t.counter v (v + 1)
+    then ()
+    else increment _pool t
 
   let decrement _pool t =
-    Atomic.decr t.counter
+    let v = Atomic.get t.counter in
+    if Atomic.compare_and_set t.counter v (v - 1)
+    then ()
+    else increment _pool t
 
   let get _pool t =
     Atomic.get t.counter

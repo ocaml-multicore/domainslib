@@ -1,6 +1,6 @@
 module T = Domainslib.Task
 
-let nb = 1_000_000
+let nb = 10_000
 let domains = Domain.recommended_domain_count () - 1
 
 module Bench (C : Counters.S) = struct
