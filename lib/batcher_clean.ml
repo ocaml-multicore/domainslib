@@ -8,7 +8,7 @@ end
 module Make (DS : DS) : sig
   type 'a t
     
-  val create : max_batch_size:int -> [> `Null] t
+  val create : num_domains:int -> unit -> [> `Null] t
   val push : 'a t -> 'a -> unit
   val try_launch : Task.pool -> [> `Null] t -> unit
 end = struct
@@ -27,11 +27,15 @@ end = struct
 
   let push t = Q.push t.q
 
-  let create ~max_batch_size =
+  let create ~num_domains () =
+    let rec log2 n =
+      if n <= 1 then 0 else 1 + (log2 (n asr 1)) in
+    let sz = Int.shift_left 1 ((log2 (num_domains-1))+1) in
+    let batch_size = sz * 8 in
     { running = Atomic.make false;
       ds = DS.create ();
       q = Chan.make_unbounded ();
-      container = Array.make max_batch_size `Null }
+      container = Array.make batch_size `Null }
     
   let rec try_launch pool t =
     if Atomic.compare_and_set t.running false true then
