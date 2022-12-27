@@ -41,10 +41,10 @@ let () =
     Format.printf " %5i   " i
   done ;
   Format.printf "@." ;
-  Format.printf " LockfreeCounter: " ;
-  Bench_LockFreeCounter.run ();
   Format.printf "     LockCounter: " ;
   Bench_LockCounter.run ();
+  Format.printf " LockfreeCounter: " ;
+  Bench_LockFreeCounter.run ();       
   Format.printf "  BatchedCounter: " ;
   Bench_BC_MPMC.run () ;
   Format.printf " BatchedCounterF: " ;

@@ -151,9 +151,9 @@ let () =
     Format.printf " %5i   " i
   done ;
   Format.printf "@." ;
-  Caml.Format.printf "    Seq_ins:  " ;
+  Caml.Format.printf "    Seq_ins: " ;
   Bench_batched_slist.run_seq () ;
-  Format.printf "Batched_ins:  " ;
+  Format.printf "Batched_ins: " ;
   Bench_batched_slist.run_batch () ;
 
 
