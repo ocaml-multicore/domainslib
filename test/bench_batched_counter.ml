@@ -5,16 +5,17 @@ let domains = Domain.recommended_domain_count () - 1
 
 module Bench (C : Counters.S) = struct
 
-  let test ~pool () =
+  let test ~pool num_domains () =
     let t = C.create nb in
+    let chunk_size = nb / (num_domains * 8) in 
     T.run pool (fun () ->
-        T.parallel_for pool ~start:1 ~finish:nb ~body:(fun _ -> C.increment pool t)
+        T.parallel_for pool ~chunk_size ~start:1 ~finish:nb ~body:(fun _ -> C.increment pool t)
       );
     assert (C.unsafe_get t = nb)
 
   let run num_domains =
     let pool = T.setup_pool ~num_domains () in
-    T.run pool (test ~pool) ;
+    T.run pool (test ~pool num_domains) ;
     T.teardown_pool pool
 
   let run () =

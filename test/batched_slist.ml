@@ -7,23 +7,8 @@ module type Comparable = sig
 end
 
 module Make (V : Comparable) : sig
-  type node =
-    | Hd of node array
-    | Node of data
-    | Null
-  and data = {
-    mutable value : V.t;
-    forward : node array
-  }
+  type t
 
-  type t = {
-    hdr : node;
-    level : int ref;
-    maxlevel : int;
-    nil : node
-  }
-
-  (* type t *)
   val make : size:int -> unit -> t
   val search : t -> V.t -> bool
   val insert : t -> V.t -> unit
@@ -68,19 +53,16 @@ end = struct
 
   let ( *= ) v1 v2 = V.compare v1 v2 = 0
   let ( *< ) v1 v2 = V.compare v1 v2 = -1
-  (* let ( *> ) = V.( > ) *)
   let compare n1 n2 =
     match n1, n2 with
     | Null, Null -> assert(n1 == n2); 0 
+    | _, Null -> -1
+    | Null, _ -> 1
     | Hd r1, Hd r2 -> assert(r1 == r2); 0
+    | Hd _, _ -> -1
+    | _, Hd _ -> 1
     | Node d1, Node d2 -> V.compare (d1.value) (d2.value)
-    | Node _, Null -> -1
-    | Null, Node _ -> 1
-    | Hd _, Node _ -> -1
-    | Node _, Hd _ -> 1
-    | Hd _, Null -> -1
-    | Null, Hd _ -> 1
-      
+     
   let rec log2 n =
     if n <= 1 then 0 else 1 + (log2 (n asr 1))
 
@@ -285,14 +267,6 @@ end = struct
       new_node_back_arr = Array.make num_elems t.nil;
       prev_node_idx = Array.make ((t.maxlevel+1) * num_elems) (-1)
     } in  
-
-    let _print () = 
-      for idx = 0 to (num_elems - 1) do
-        let node = intermediary.new_node_arr.(idx) in
-        let _node_back = intermediary.new_node_back_arr.(idx) in
-        Caml.Format.printf "%s\n%!" (to_string node)
-      done
-    in
 
     for idx = 0 to (num_elems-1) do
       build_node t idx (elems.(idx)) intermediary

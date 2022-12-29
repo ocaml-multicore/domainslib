@@ -238,14 +238,15 @@ module BatchedCounterFaster : S = struct
 end
 
 
-(* let () = *)
-(*   let open BatchedCounter in *)
-(*   let n = 1_000_000 in *)
-(*   let t = create n in *)
-(*   let pool = T.setup_pool ~num_domains:8 () in *)
-(*   T.run pool (fun () -> *)
-(*     T.parallel_for pool ~start:1 ~finish:n ~body: *)
-(*       (fun _ -> increment pool t) *)
-(*     ); *)
-(*   Hashtbl.iter (fun x y -> Printf.printf "%d -> %d\n" x y) stats; *)
-(*   T.teardown_pool pool *)
+let () =
+  let open BatchedCounter in
+  let n = 1_000_000 in
+  let chunk_size = n / 100 in
+  let t = create n in
+  let pool = T.setup_pool ~num_domains:7 () in
+  T.run pool (fun () ->
+    T.parallel_for pool ~chunk_size ~start:1 ~finish:n ~body:
+      (fun _ -> increment pool t)
+    );
+  Hashtbl.iter (fun x y -> Printf.printf "%d -> %d\n" x y) stats;
+  T.teardown_pool pool

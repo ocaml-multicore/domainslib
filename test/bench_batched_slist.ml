@@ -16,7 +16,7 @@ module Bench (SLF : Slist) = struct
   module SL = SLF(Int)
 
   module T = Domainslib.Task
-  let preset_size = 10_000_000
+  let preset_size = 1_000_000
   let additional = 100_000
   let total_size = preset_size + additional
   let additional_arr = Array.make additional 0
@@ -37,10 +37,10 @@ module Bench (SLF : Slist) = struct
 
   let with_pool f t num_domains =
     let pool = T.setup_pool ~num_domains () in
-    T.run pool (f pool t) ;
+    T.run pool (f pool t num_domains) ;
     T.teardown_pool pool    
 
-  let test_seq _pool t () =
+  let test_seq _pool t num_domains () =
     Array.iter (fun elt -> SL.seq_ins t elt) additional_arr
 
   let run_seq () =
@@ -57,8 +57,9 @@ module Bench (SLF : Slist) = struct
     done ;
     Caml.Format.printf "@."
 
-  let test_batch pool t () =
-    T.parallel_for pool ~start:0 ~finish:(additional-1) ~body:(fun i ->
+  let test_batch pool t num_domains () =
+    let chunk_size = additional / (num_domains * 8) in
+    T.parallel_for pool ~chunk_size ~start:0 ~finish:(additional-1) ~body:(fun i ->
         SL.batch_ins pool t (additional_arr.(i))
       )
     (* SL.print_stats t *)
@@ -122,9 +123,9 @@ module Batched_slist : Slist = functor (V : Batched_slist.Comparable) -> struct
              | Null -> failwith "Error") batch in
          SL.par_insert t.slist pool data;
          (match batch.(0) with Ins (_,_,set) -> set () | _ -> failwith "Bad");
-         (match Hashtbl.find_opt t.stats !i with
-          | Some cnt -> Hashtbl.replace t.stats !i (cnt + 1)
-          | None -> Hashtbl.add t.stats !i 1);
+         (* (match Hashtbl.find_opt t.stats !i with *)
+         (*  | Some cnt -> Hashtbl.replace t.stats !i (cnt + 1) *)
+         (*  | None -> Hashtbl.add t.stats !i 1); *)
          Atomic.set t.running false;
          try_launch pool t)
       | None -> Atomic.set t.running false
@@ -151,9 +152,9 @@ let () =
     Format.printf " %5i   " i
   done ;
   Format.printf "@." ;
-  Caml.Format.printf "    Seq_ins: " ;
-  Bench_batched_slist.run_seq () ;
   Format.printf "Batched_ins: " ;
   Bench_batched_slist.run_batch () ;
+  Caml.Format.printf "    Seq_ins: " ;
+  Bench_batched_slist.run_seq () ;
 
 
