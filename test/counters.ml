@@ -1,14 +1,4 @@
 module T = Domainslib.Task
-(* module Atomic = struct *)
-(*   include Atomic *)
-
-(*   let n = 0.0001 *)
-(*   let get t = Unix.sleepf n; Atomic.get t *)
-(*   let incr t = Unix.sleepf n; Atomic.incr t *)
-(*   let decr t = Unix.sleepf n; Atomic.decr t *)
-(*   let fetch_and_add t = Unix.sleepf n; Atomic.fetch_and_add t *)
-(*   let set t = Unix.sleepf n; Atomic.set t *)
-(* end *)
 
 module CounterBase = struct
   module Q = Mpmc_queue
@@ -26,7 +16,7 @@ module CounterBase = struct
     | Decr of t * (unit -> unit)
     | Get of t * (int -> unit)
     | Null
-      
+
   let stats : (int, int) Hashtbl.t = Hashtbl.create 100
 
   let create n =
@@ -76,18 +66,18 @@ module LockfreeCounter : S = struct
     then ()
     else increment _pool t
 
-  let decrement _pool t =
+  let rec decrement _pool t =
     let v = Atomic.get t.counter in
     if Atomic.compare_and_set t.counter v (v - 1)
     then ()
-    else increment _pool t
+    else decrement _pool t
 
   let get _pool t =
     Atomic.get t.counter
 
 end
 
-module BatchedCounter : S = struct
+module BatchedCounter = struct
   include CounterBase
 
   let par_prefix_sums pool t arr =
@@ -143,7 +133,7 @@ end
 
 module BatchedCounterFast : S = struct
   include CounterBase
-      
+
   let rec try_launch pool t =
   if Atomic.get t.batch_size > 0
   && Atomic.compare_and_set t.running false true
@@ -183,14 +173,14 @@ module BatchedCounterFast : S = struct
   let get pool t =
     let pr, set = T.promise () in
     Q.push t.q (Get (t, set));
-    Atomic.incr t.batch_size;                      
+    Atomic.incr t.batch_size;
     try_launch pool t;
     T.await pool pr
 end
 
 module BatchedCounterFaster : S = struct
   include CounterBase
-      
+
   let rec try_launch pool t =
   if Atomic.get t.batch_size > 0
   && Atomic.compare_and_set t.running false true
@@ -237,16 +227,16 @@ module BatchedCounterFaster : S = struct
   let get _pool t = Atomic.get t.counter
 end
 
+(* let () = *)
+(*   let open BatchedCounter in *)
+(*   let n = 1_000_000 in *)
+(*   (\* let chunk_size = n / 100 in *\) *)
+(*   let t = create n in *)
+(*   let pool = T.setup_pool ~num_domains:7 () in *)
+(*   T.run pool (fun () -> *)
+(*     T.parallel_for pool ~start:1 ~finish:n ~body: *)
+(*       (fun _ -> increment pool t) *)
+(*     ); *)
+(*   Hashtbl.iter (fun x y -> Printf.printf "%d -> %d\n" x y) stats; *)
+(*   T.teardown_pool pool *)
 
-let () =
-  let open BatchedCounter in
-  let n = 1_000_000 in
-  let chunk_size = n / 100 in
-  let t = create n in
-  let pool = T.setup_pool ~num_domains:7 () in
-  T.run pool (fun () ->
-    T.parallel_for pool ~chunk_size ~start:1 ~finish:n ~body:
-      (fun _ -> increment pool t)
-    );
-  Hashtbl.iter (fun x y -> Printf.printf "%d -> %d\n" x y) stats;
-  T.teardown_pool pool

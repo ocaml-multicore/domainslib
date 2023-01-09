@@ -5,11 +5,10 @@ let domains = Domain.recommended_domain_count () - 1
 
 module Bench (C : Counters.S) = struct
 
-  let test ~pool num_domains () =
+  let test ~pool _num_domains () =
     let t = C.create nb in
-    let chunk_size = nb / (num_domains * 8) in 
     T.run pool (fun () ->
-        T.parallel_for pool ~chunk_size ~start:1 ~finish:nb ~body:(fun _ -> C.increment pool t)
+        T.parallel_for pool ~start:1 ~finish:nb ~body:(fun _ -> C.increment pool t)
       );
     assert (C.unsafe_get t = nb)
 
@@ -45,7 +44,7 @@ let () =
   Format.printf "     LockCounter: " ;
   Bench_LockCounter.run ();
   Format.printf " LockfreeCounter: " ;
-  Bench_LockFreeCounter.run ();       
+  Bench_LockFreeCounter.run ();
   Format.printf "  BatchedCounter: " ;
   Bench_BC_MPMC.run () ;
   Format.printf " BatchedCounterF: " ;
