@@ -32,7 +32,7 @@ end = struct
 
   let[@warning "-32"] to_string = function
     | Hd forward -> "Hd -> [|" ^(Array.fold_right (fun node acc -> acc ^ "; " ^ (show node)) forward "")^"|]"
-    | Node {forward;_} as n -> (show n)^"-> [|"^(Array.fold_right (fun node acc -> acc ^ "; " ^ (show node)) forward "")^"|]" 
+    | Node {forward;_} as n -> (show n)^"-> [|"^(Array.fold_right (fun node acc -> acc ^ "; " ^ (show node)) forward "")^"|]"
     | Null -> "Null"
 
   type t = {
@@ -55,14 +55,14 @@ end = struct
   let ( *< ) v1 v2 = V.compare v1 v2 = -1
   let compare n1 n2 =
     match n1, n2 with
-    | Null, Null -> assert(n1 == n2); 0 
+    | Null, Null -> assert(n1 == n2); 0
     | _, Null -> -1
     | Null, _ -> 1
     | Hd r1, Hd r2 -> assert(r1 == r2); 0
     | Hd _, _ -> -1
     | _, Hd _ -> 1
     | Node d1, Node d2 -> V.compare (d1.value) (d2.value)
-     
+
   let rec log2 n =
     if n <= 1 then 0 else 1 + (log2 (n asr 1))
 
@@ -193,7 +193,7 @@ end = struct
     let next = ref (idx + 1) in
     for lvl = 0 to level_arr.(idx) do
       (!>node).(lvl) <- t.nil;
-      (try 
+      (try
          for id = !next to (batch_size-1) do
            if lvl <= level_arr.(id) then
              begin
@@ -221,7 +221,7 @@ end = struct
     let node_back = new_node_back_arr.(idx) in
     let update = Array.make (t.maxlevel + 1) t.nil in
     let x = ref t.hdr in
-    try 
+    try
       for i = !(t.level) downto 0 do
         while
           match (!>(!x)).(i) with
@@ -242,18 +242,18 @@ end = struct
       done;
 
       for i = 0 to level_arr.(idx) do
-        
+
         if (!>node).(i) == t.nil || compare ((!>(update.(i))).(i)) ((!>node).(i)) <= 0 then
           (if (!>(update.(i))).(i) != t.nil then
              (!>node).(i) <- (!>(update.(i))).(i));
-        
+
         let prev_node_id = prev_node_idx.(((!maxinsertlevel+1)*idx)+i) in
         if prev_node_id = -1 || compare (new_node_arr.(prev_node_id)) (update.(i)) <= 0
         then ((!>node_back).(i) <- update.(i);
               prev_node_idx.(((!maxinsertlevel+1)*idx)+i) <- -2)
       done;
     with Return -> ()
-    
+
   let par_insert t (pool : T.pool) (elems : V.t array) =
     (* Sort in acscending order *)
     Array.sort V.compare elems;
@@ -266,23 +266,23 @@ end = struct
       new_node_arr = Array.make num_elems t.nil;
       new_node_back_arr = Array.make num_elems t.nil;
       prev_node_idx = Array.make ((t.maxlevel+1) * num_elems) (-1)
-    } in  
+    } in
 
     for idx = 0 to (num_elems-1) do
       build_node t idx (elems.(idx)) intermediary
-    done; 
+    done;
 
     for idx = 0 to (num_elems-1) do
       relate_nodes t idx intermediary
     done;
 
-    T.parallel_for pool (*~chunk_size:1*) ~start:0 ~finish:(num_elems-1)
+    T.parallel_for pool ~chunk_size:1 ~start:0 ~finish:(num_elems-1)
       ~body:(fun idx -> merge_list t idx intermediary);
-        
+
     for i = 0 to num_elems-1 do
       for j = 0 to intermediary.level_arr.(i) do
         if intermediary.prev_node_idx.(((!(intermediary.maxinsertlevel)+1)*i)+j) = -2
-        then begin 
+        then begin
           let back_node = (!>(intermediary.new_node_back_arr.(i))).(j) in
           (!>back_node).(j) <- intermediary.new_node_arr.(i)
         end
@@ -332,10 +332,10 @@ let test_batch_insert () =
   Format.printf "@." ;
   Format.printf "Batch_ins: " ;
   let module ISL = Make (Int) in
-  let preset_size = 1_000_000 in 
-  let additional = 100_000 in
+  let preset_size = 1_000_000 in
+  let additional = 1_00_000 in
   let total_size = preset_size + additional in
-  let max_rdm_int = (Int.shift_left 1 30) - 1 in 
+  let max_rdm_int = (Int.shift_left 1 30) - 1 in
   let preset_arr =
     Random.init 0;
     Array.init preset_size (fun _ -> Random.int max_rdm_int) in

@@ -7,7 +7,6 @@ module type Slist =
     val make : size:int -> batch_size:int -> unit -> t
     val search : t -> V.t -> bool
     val seq_ins : t -> V.t -> unit
-    val batch_ins : T.pool -> t -> V.t array -> unit
     val imp_batch_ins : T.pool -> t -> V.t -> unit
     val size : t -> int
     val print_stats : t -> unit
@@ -26,7 +25,7 @@ module Bench (SLF : Slist) = struct
     Array.init preset_size (fun _ -> Random.int max_rdm_int)
   let additional_arr =
     Array.init additional (fun _ -> Random.int max_rdm_int)
-                   
+
   let init () =
     let t = SL.make ~size:total_size ~batch_size:127 () in
     (* Insert Random *)
@@ -36,13 +35,13 @@ module Bench (SLF : Slist) = struct
   let with_pool f t num_domains =
     let pool = T.setup_pool ~num_domains () in
     T.run pool (f pool t num_domains) ;
-    T.teardown_pool pool    
+    T.teardown_pool pool
 
   let test_seq _pool t _num_domains () =
     Array.iter (fun elt -> SL.seq_ins t elt) additional_arr
 
   let run_seq () =
-    for i = 1 to 7 do                    
+    for i = 0 to 7 do
       let t = init () in
       let t0 = Unix.gettimeofday () in
       with_pool (test_seq) t i;
@@ -53,35 +52,13 @@ module Bench (SLF : Slist) = struct
     done ;
     Format.printf "@."
 
-  let test_batch pool t _num_domains () =
-    SL.batch_ins pool t (additional_arr);
-    Printf.printf "Size = %d\n" (SL.size t)
-    (* assert (SL.size t = total_size) *)
-
-  let run_batch () =
-    for i = 1 to 7 do                    
-      let t = init () in
-      Gc.full_major ();
-      let t0 = Unix.gettimeofday () in
-      with_pool (test_batch) t i;
-      let t1 = Unix.gettimeofday () in
-      let op_ms = (Int.to_float additional) /. (1000.0 *. (t1 -. t0)) in
-      Format.printf "  %7s%!"
-        (Printf.sprintf "%.0f" op_ms);
-    done ;
-    Format.printf "@."
-
   let test_imp_batch pool t _num_domains () =
-    let chunk_size = additional / 127 in
-    T.parallel_for pool ~chunk_size ~start:0 ~finish:(additional-1) ~body:(fun i ->
+    T.parallel_for pool ~start:0 ~finish:(additional-1) ~body:(fun i ->
         SL.imp_batch_ins pool t (additional_arr.(i))
       )
-    (* SL.print_stats t *)
-    (* Printf.printf "Size = %d\n" (SL.size t); *)
-    (* assert (SL.size t = total_size) *)
 
   let run_imp_batch () =
-    for i = 1 to 7 do                    
+    for i = 0 to 7 do
       let t = init () in
       let t0 = Unix.gettimeofday () in
       with_pool (test_imp_batch) t i;
@@ -102,7 +79,6 @@ module Batched_slist : Slist = functor (V : Slist.Comparable) -> struct
     running : bool Atomic.t;
     q : batch_op Q.t;
     container : batch_op array;
-    set_array : (unit -> unit) array;
     stats : (int, int) Hashtbl.t
   }
   and
@@ -116,7 +92,6 @@ module Batched_slist : Slist = functor (V : Slist.Comparable) -> struct
      running = Atomic.make false;
      q = Q.make ();
      container = Array.make batch_size Null;
-     set_array = Array.make batch_size (fun _ -> ());
      stats = Hashtbl.create 100;
     }
 
@@ -134,20 +109,13 @@ module Batched_slist : Slist = functor (V : Slist.Comparable) -> struct
          let data = Array.mapi (fun _ op ->
              match op with
              | Ins (_, elt, set) -> set (); elt
-             (* | Ins (_, elt, set) -> if i > 0 then set (); elt *)
              | Null -> failwith "Error") batch in
          SL.par_insert t.slist pool data;
-         (match batch.(0) with Ins (_,_,set) -> set () | _ -> failwith "Bad");
-         (* (match Hashtbl.find_opt t.stats !i with *)
-         (*  | Some cnt -> Hashtbl.replace t.stats !i (cnt + 1) *)
-         (*  | None -> Hashtbl.add t.stats !i 1); *)
          Atomic.set t.running false;
          try_launch pool t)
       | None -> Atomic.set t.running false
 
   let seq_ins t elt = SL.insert t.slist elt
-      
-  let batch_ins pool t arr = SL.par_insert t.slist pool arr
 
   let imp_batch_ins pool t elt =
     let pr, set = T.promise () in
@@ -166,14 +134,11 @@ module Bench_batched_slist =  Bench (Batched_slist)
 let () =
   Format.printf "@." ;
   Format.printf "   num_domains: " ;
-  for i = 1 to 7 do
-    Format.printf " %5i   " (i + 1)
+  for i = 1 to 8 do
+    Format.printf " %5i   " i
   done ;
   Format.printf "@." ;
-  (* Format.printf "     Seq_ins: " ; *)
-  (* Bench_batched_slist.run_seq () ; *)
-  Format.printf " Batched_ins: " ;
-  Bench_batched_slist.run_batch () ;
   Format.printf "ImpBatch_ins: " ;
-  Bench_batched_slist.run_imp_batch () ;
-  
+  Bench_batched_slist.run_imp_batch ();
+  Format.printf "     Seq_ins: " ;
+  Bench_batched_slist.run_seq () ;
