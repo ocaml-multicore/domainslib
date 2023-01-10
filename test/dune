@@ -5,7 +5,14 @@
  (modes native))
 
 (tests
- (names bench_mpmc_queue counters test_batch_counting bench_counters batched_slist bench_batched_slist)
+ (names
+   bench_mpmc_queue
+   counters
+   test_batch_counting
+   bench_counters
+   slist
+   test_batch_inserts
+   bench_slist)
  (libraries domainslib unix)
  (modules
   mpmc_queue
@@ -13,8 +20,9 @@
   counters
   test_batch_counting
   bench_counters
-  batched_slist
-  bench_batched_slist)
+  slist
+  test_batch_inserts
+  bench_slist)
  (modes native))
 
 (test

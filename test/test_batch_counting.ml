@@ -1,4 +1,4 @@
-let n = try int_of_string Sys.argv.(2) with _ -> 10_000_000
+let n = try int_of_string Sys.argv.(2) with _ -> 100_000
 
 module T = Domainslib.Task
 module C = Counters.BatchedCounter
@@ -7,7 +7,7 @@ let () =
   Format.printf "@." ;
   Format.printf "     num_domains: " ;
   for i = 0 to 7 do
-    Format.printf " %5i   " i
+    Format.printf " %5i   " (i + 1)
   done ;
   Format.printf "@." ;
   Format.printf "Par_prefix_sum: " ;

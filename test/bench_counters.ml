@@ -1,28 +1,22 @@
 module T = Domainslib.Task
 
-let nb = 1_000_000
-let domains = Domain.recommended_domain_count () - 1
+let nb = 100_000
+let add_domains = Domain.recommended_domain_count () - 1
 
 module Bench (C : Counters.S) = struct
 
-  let test ~pool _num_domains () =
-    let t = C.create nb in
-    T.run pool (fun () ->
-        T.parallel_for pool ~start:1 ~finish:nb ~body:(fun _ -> C.increment pool t)
-      );
-    assert (C.unsafe_get t = nb)
-
-  let run num_domains =
-    let pool = T.setup_pool ~num_domains () in
-    T.run pool (test ~pool num_domains) ;
-    T.teardown_pool pool
-
   let run () =
-    for i = 1 to domains do
+    for num_domains = 0 to add_domains do
+      let pool = T.setup_pool ~num_domains () in
       let t0 = Unix.gettimeofday () in
-      run i ;
+      let t = C.create nb in
+      T.run pool (fun () ->
+          T.parallel_for pool ~chunk_size:(nb/4092) ~start:1 ~finish:nb ~body:(fun _ -> C.increment pool t)
+        );
+      assert (C.unsafe_get t = nb);
       let t1 = Unix.gettimeofday () in
-      Format.printf "  %7s%!"
+      T.teardown_pool pool;
+        Format.printf "  %7s%!"
         (Printf.sprintf "%.2f" (1000.0 *. (t1 -. t0)))
     done ;
     Format.printf "@."
@@ -37,7 +31,7 @@ module Bench_LockCounter = Bench (Counters.LockCounter)
 let () =
   Format.printf "@." ;
   Format.printf "     num_domains: " ;
-  for i = 1 to domains do
+  for i = 2 to add_domains + 1 do
     Format.printf " %5i   " i
   done ;
   Format.printf "@." ;

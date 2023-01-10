@@ -30,7 +30,7 @@ end = struct
     | Node {value; _} -> Printf.sprintf "Node(%s)" (V.to_string value)
     | Null -> "Null"
 
-  let to_string = function
+  let[@warning "-32"] to_string = function
     | Hd forward -> "Hd -> [|" ^(Array.fold_right (fun node acc -> acc ^ "; " ^ (show node)) forward "")^"|]"
     | Node {forward;_} as n -> (show n)^"-> [|"^(Array.fold_right (fun node acc -> acc ^ "; " ^ (show node)) forward "")^"|]" 
     | Null -> "Null"
@@ -145,20 +145,20 @@ end = struct
   let print_slist t =
     let print_level t lvl =
       let rec aux = function
-        | Null -> Stdio.print_endline "Null"
+        | Null -> print_endline "Null"
         | Hd forward ->
-          Stdio.printf "Level %d : Hd -> " lvl;
+          Printf.printf "Level %d : Hd -> " lvl;
           aux forward.(lvl)
         | Node {value; forward; _} ->
           let val_str = V.to_string value in
-          Stdio.printf "(%s) -> " val_str;
+          Printf.printf "(%s) -> " val_str;
           aux forward.(lvl)
       in
       aux t.hdr
     in
     for lvl = !(t.level) downto 0 do
       print_level t lvl;
-      Stdio.printf "\n"
+      Printf.printf "\n"
     done
 
   type intermediate = {
@@ -276,7 +276,7 @@ end = struct
       relate_nodes t idx intermediary
     done;
 
-    T.parallel_for pool ~start:0 ~finish:(num_elems-1)
+    T.parallel_for pool (*~chunk_size:1*) ~start:0 ~finish:(num_elems-1)
       ~body:(fun idx -> merge_list t idx intermediary);
         
     for i = 0 to num_elems-1 do
@@ -290,7 +290,7 @@ end = struct
     done
 end
 
-let () =
+let test_seq_consistency () =
   let size = 10_000 in
   let module IS = Make (Int) in
   (* Test sequential insert *)
@@ -323,4 +323,35 @@ let () =
   T.run pool main;
   T.teardown_pool pool
 
-  
+let test_batch_insert () =
+  Format.printf "@." ;
+  Format.printf "num_domains: " ;
+  for i = 1 to 8 do
+    Format.printf " %5i   " i
+  done ;
+  Format.printf "@." ;
+  Format.printf "Batch_ins: " ;
+  let module ISL = Make (Int) in
+  let preset_size = 1_000_000 in 
+  let additional = 100_000 in
+  let total_size = preset_size + additional in
+  let max_rdm_int = (Int.shift_left 1 30) - 1 in 
+  let preset_arr =
+    Random.init 0;
+    Array.init preset_size (fun _ -> Random.int max_rdm_int) in
+  let additional_arr =
+    Array.init additional (fun _ -> Random.int max_rdm_int) in
+  for num_domains = 0 to 7 do
+    let t = ISL.make ~size:total_size () in
+    let pool = T.setup_pool ~num_domains () in
+    Array.iter (fun elt -> ISL.insert t elt) preset_arr;
+    Gc.full_major ();
+    let t0 = Unix.gettimeofday () in
+    T.run pool (fun () -> ISL.par_insert t pool additional_arr);
+    let t1 = Unix.gettimeofday () in
+    let op_ms = (Int.to_float additional) /. (1000.0 *. (t1 -. t0)) in
+    Format.printf "  %7s%!" (Printf.sprintf "%.0f" op_ms);
+    T.teardown_pool pool
+  done
+
+let () = test_batch_insert ()

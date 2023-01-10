@@ -1,13 +1,14 @@
 module T = Domainslib.Task
 module type Slist =
-  functor (V: Batched_slist.Comparable) ->
+  functor (V: Slist.Comparable) ->
   sig
     type t
 
-    val make : size:int -> unit -> t
+    val make : size:int -> batch_size:int -> unit -> t
     val search : t -> V.t -> bool
     val seq_ins : t -> V.t -> unit
-    val batch_ins : T.pool -> t -> V.t -> unit
+    val batch_ins : T.pool -> t -> V.t array -> unit
+    val imp_batch_ins : T.pool -> t -> V.t -> unit
     val size : t -> int
     val print_stats : t -> unit
   end
@@ -19,20 +20,17 @@ module Bench (SLF : Slist) = struct
   let preset_size = 1_000_000
   let additional = 100_000
   let total_size = preset_size + additional
-  let additional_arr = Array.make additional 0
   let max_rdm_int = (Int.shift_left 1 30) - 1
+  let preset_arr =
+    Random.init 0;
+    Array.init preset_size (fun _ -> Random.int max_rdm_int)
+  let additional_arr =
+    Array.init additional (fun _ -> Random.int max_rdm_int)
                    
   let init () =
-    Random.init 0;
-    let t = SL.make ~size:total_size () in
-    for _ = 1 to preset_size do
-      (* Insert Random *)
-      let rdm = Random.int max_rdm_int in
-      SL.seq_ins t rdm
-    done;
-    for i = 0 to (additional-1) do
-      additional_arr.(i) <-  Random.int max_rdm_int
-    done;
+    let t = SL.make ~size:total_size ~batch_size:127 () in
+    (* Insert Random *)
+    Array.iter (fun elt -> SL.seq_ins t elt) preset_arr;
     t
 
   let with_pool f t num_domains =
@@ -40,7 +38,7 @@ module Bench (SLF : Slist) = struct
     T.run pool (f pool t num_domains) ;
     T.teardown_pool pool    
 
-  let test_seq _pool t num_domains () =
+  let test_seq _pool t _num_domains () =
     Array.iter (fun elt -> SL.seq_ins t elt) additional_arr
 
   let run_seq () =
@@ -52,37 +50,51 @@ module Bench (SLF : Slist) = struct
       let op_ms = (Int.to_float additional) /. (1000.0 *. (t1 -. t0)) in
       Format.printf "  %7s%!"
         (Printf.sprintf "%.0f" op_ms);
-      (* Caml.Format.printf "  %7s%!" *)
-      (*   (Printf.sprintf "%.0f" (1000.0 *. (t1 -. t0))) *)
     done ;
-    Caml.Format.printf "@."
+    Format.printf "@."
 
-  let test_batch pool t num_domains () =
-    let chunk_size = additional / (num_domains * 8) in
-    T.parallel_for pool ~chunk_size ~start:0 ~finish:(additional-1) ~body:(fun i ->
-        SL.batch_ins pool t (additional_arr.(i))
-      )
-    (* SL.print_stats t *)
-    (* Printf.printf "Size = %d\n" (SL.size t); *)
+  let test_batch pool t _num_domains () =
+    SL.batch_ins pool t (additional_arr);
+    Printf.printf "Size = %d\n" (SL.size t)
     (* assert (SL.size t = total_size) *)
 
   let run_batch () =
     for i = 1 to 7 do                    
       let t = init () in
+      Gc.full_major ();
       let t0 = Unix.gettimeofday () in
       with_pool (test_batch) t i;
       let t1 = Unix.gettimeofday () in
       let op_ms = (Int.to_float additional) /. (1000.0 *. (t1 -. t0)) in
       Format.printf "  %7s%!"
         (Printf.sprintf "%.0f" op_ms);
-      (* Format.printf "  %7s%!" *)
-      (*   (Printf.sprintf "%.2f ms" (1000.0 *. (t1 -. t0))) *)
+    done ;
+    Format.printf "@."
+
+  let test_imp_batch pool t _num_domains () =
+    let chunk_size = additional / 127 in
+    T.parallel_for pool ~chunk_size ~start:0 ~finish:(additional-1) ~body:(fun i ->
+        SL.imp_batch_ins pool t (additional_arr.(i))
+      )
+    (* SL.print_stats t *)
+    (* Printf.printf "Size = %d\n" (SL.size t); *)
+    (* assert (SL.size t = total_size) *)
+
+  let run_imp_batch () =
+    for i = 1 to 7 do                    
+      let t = init () in
+      let t0 = Unix.gettimeofday () in
+      with_pool (test_imp_batch) t i;
+      let t1 = Unix.gettimeofday () in
+      let op_ms = (Int.to_float additional) /. (1000.0 *. (t1 -. t0)) in
+      Format.printf "  %7s%!"
+        (Printf.sprintf "%.0f" op_ms);
     done ;
     Format.printf "@."
 end
 
-module Batched_slist : Slist = functor (V : Batched_slist.Comparable) -> struct
-  module SL = Batched_slist.Make(V)
+module Batched_slist : Slist = functor (V : Slist.Comparable) -> struct
+  module SL = Slist.Make(V)
   module Q = Mpmc_queue
   type t = {
     slist : SL.t;
@@ -90,6 +102,7 @@ module Batched_slist : Slist = functor (V : Batched_slist.Comparable) -> struct
     running : bool Atomic.t;
     q : batch_op Q.t;
     container : batch_op array;
+    set_array : (unit -> unit) array;
     stats : (int, int) Hashtbl.t
   }
   and
@@ -97,12 +110,13 @@ module Batched_slist : Slist = functor (V : Batched_slist.Comparable) -> struct
     | Ins of t * V.t * (unit -> unit)
     | Null
 
-  let make ~size () =
+  let make ~size ~batch_size() =
     {slist = SL.make ~size ();
      batch_size = Atomic.make 0;
      running = Atomic.make false;
      q = Q.make ();
-     container = Array.make size Null;
+     container = Array.make batch_size Null;
+     set_array = Array.make batch_size (fun _ -> ());
      stats = Hashtbl.create 100;
     }
 
@@ -117,9 +131,10 @@ module Batched_slist : Slist = functor (V : Batched_slist.Comparable) -> struct
            | None -> false
          do () done;
          let batch = Array.init !i (fun i -> t.container.(i)) in
-         let data = Array.mapi (fun i op ->
+         let data = Array.mapi (fun _ op ->
              match op with
-             | Ins (_, elt, set) -> if i > 0 then set (); elt
+             | Ins (_, elt, set) -> set (); elt
+             (* | Ins (_, elt, set) -> if i > 0 then set (); elt *)
              | Null -> failwith "Error") batch in
          SL.par_insert t.slist pool data;
          (match batch.(0) with Ins (_,_,set) -> set () | _ -> failwith "Bad");
@@ -131,12 +146,15 @@ module Batched_slist : Slist = functor (V : Batched_slist.Comparable) -> struct
       | None -> Atomic.set t.running false
 
   let seq_ins t elt = SL.insert t.slist elt
+      
+  let batch_ins pool t arr = SL.par_insert t.slist pool arr
 
-  let batch_ins pool t elt =
+  let imp_batch_ins pool t elt =
     let pr, set = T.promise () in
     Q.push t.q (Ins (t, elt, set));
     try_launch pool t;
     T.await pool pr
+
 
   let search t = SL.search t.slist
   let size t = SL.size t.slist
@@ -147,14 +165,15 @@ module Bench_batched_slist =  Bench (Batched_slist)
 
 let () =
   Format.printf "@." ;
-  Format.printf "  num_domains: " ;
+  Format.printf "   num_domains: " ;
   for i = 1 to 7 do
-    Format.printf " %5i   " i
+    Format.printf " %5i   " (i + 1)
   done ;
   Format.printf "@." ;
-  Format.printf "Batched_ins: " ;
+  (* Format.printf "     Seq_ins: " ; *)
+  (* Bench_batched_slist.run_seq () ; *)
+  Format.printf " Batched_ins: " ;
   Bench_batched_slist.run_batch () ;
-  Caml.Format.printf "    Seq_ins: " ;
-  Bench_batched_slist.run_seq () ;
-
-
+  Format.printf "ImpBatch_ins: " ;
+  Bench_batched_slist.run_imp_batch () ;
+  
