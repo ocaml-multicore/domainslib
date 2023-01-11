@@ -13,6 +13,7 @@ module Make (V : Comparable) : sig
   val search : t -> V.t -> bool
   val insert : t -> V.t -> unit
   val size : t -> int
+  val validate : t -> unit
   val print_slist : t -> unit
   val par_insert : t -> T.pool -> V.t array -> unit
 end = struct
@@ -81,7 +82,6 @@ end = struct
   let make_node t lvl value = Node { value; forward = Array.make (lvl + 1) t.nil}
 
   let search t elt =
-    let cnt = ref 0 in
     let x = ref t.hdr in
     for i = !(t.level) downto 0 do
       while
@@ -89,7 +89,6 @@ end = struct
         | Null | Hd _ -> false
         | Node {value ; _} -> value *< elt
       do
-        incr cnt;
         x := (!>(!x)).(i)
       done
     done;
@@ -141,6 +140,22 @@ end = struct
         aux (acc+1) forward.(0)
     in
     aux 0 t.hdr
+
+  (* Does not work on empty lists *)
+  let validate t =
+    let rec walk prev = function
+      | Null -> ()
+      | Hd forward -> walk prev forward.(0)
+      | Node {value; forward; _} ->
+        let vals = value |> V.to_string in
+        let prevs = prev |> V.to_string in
+        (if value < prev then Printf.printf "Ordering error %s -> %s\n" vals prevs
+         else if value = prev then Printf.printf "Duplicate error %s -> %s\n" vals prevs);
+        walk value forward.(0)
+    in
+    let starting_point =  !>(t.hdr).(0) in
+    let first_val = !^starting_point.value in
+    walk first_val !>starting_point.(0)
 
   let print_slist t =
     let print_level t lvl =
@@ -232,10 +247,10 @@ end = struct
         done;
         (* No duplicates *)
         (match !x with
-         | Null | Hd _ -> ()
-         | Node {forward;_} ->
+         | Null -> ()
+         | Hd forward | Node {forward;_} ->
            if forward.(i) != t.nil &&
-              (!^(forward.(i))).value *< (!^node).value
+              (!^(forward.(i))).value *= (!^node).value
            then raise Return);
 
         update.(i) <- !x
@@ -254,10 +269,23 @@ end = struct
       done;
     with Return -> ()
 
+  let remove_duplicates arr num_elements =
+    if num_elements <= 1 then num_elements
+    else
+      let j = ref 0 in
+      for i = 0 to num_elements - 2 do
+        if arr.(i) <> arr.(i + 1) then (
+          arr.(!j) <- arr.(i);
+          incr j)
+      done;
+      arr.(!j) <- arr.(num_elements - 1);
+      incr j;
+      !j
+
   let par_insert t (pool : T.pool) (elems : V.t array) =
     (* Sort in acscending order *)
     Array.sort V.compare elems;
-    let num_elems = Array.length elems in
+    let num_elems = remove_duplicates elems (Array.length elems) in
 
     let intermediary = {
       batch_size = num_elems;
@@ -290,7 +318,7 @@ end = struct
     done
 end
 
-let test_seq_consistency () =
+let test_correctness () =
   let size = 10_000 in
   let module IS = Make (Int) in
   (* Test sequential insert *)
@@ -307,11 +335,11 @@ let test_seq_consistency () =
   assert(IS.size t1 = size);
 
   (* Test par_insert *)
-  let pool = T.setup_pool ~num_domains:0 () in
+  let pool = T.setup_pool ~num_domains:7 () in
   let t2 = IS.make ~size () in
   let elems_even = Array.init (size/2) (fun i -> (i+1)*2) in
   let elems_odd = Array.init (size/2) (fun i -> ((i+1)*2)-1) in
-  let main () =
+  let test_par_insert () =
     IS.par_insert t2 pool elems_even;
     assert(IS.size t2 = size/2);
     IS.par_insert t2 pool elems_odd;
@@ -320,7 +348,47 @@ let test_seq_consistency () =
     assert(IS.search t2 size);
     (* IS.print_slist t2 *)
   in
-  T.run pool main;
+  T.run pool test_par_insert;
+
+  (* Test uniqueness invariant *)
+  let t3 = IS.make ~size:100 () in
+  let preset = [|5;10;56;100|] in
+  Array.iter (fun elt -> IS.insert t3 elt) preset;
+  assert(IS.search t3 5);
+  let additional = [|5;6;5;10;9;101;100;55;56|] in
+  let test_uniqueness () =
+    IS.par_insert t3 pool additional;
+    assert(IS.size t3 = 8);
+    assert(IS.search t3 56);
+  in
+  T.run pool test_uniqueness;
+
+  (* Stress test inserts *)
+  let preset = 1_000_000 in
+  let additional = 100_000 in
+  let size = preset + additional in
+  let t4 = IS.make ~size () in
+  Random.init 0;
+  let max_rdm_int = (Int.shift_left 1 30) - 1 in
+  let random_preset = Array.init preset (fun _ -> Random.int max_rdm_int) in
+  let random_additional = Array.init additional (fun _ -> Random.int max_rdm_int) in
+  Array.iter (fun elt -> IS.insert t4 elt) random_preset;
+  let batch_insert () = IS.par_insert t4 pool random_additional in
+  T.run pool batch_insert;
+  let total_arr = Array.append random_preset random_additional in
+  Array.sort Int.compare total_arr;
+  let count_unique arr =
+    let len = Array.length arr in
+    let rec aux idx acc =
+      if idx >= len then acc else
+        begin
+          if arr.(idx-1) = arr.(idx) then aux (idx+1) acc else aux (idx+1) (acc+1)
+        end
+    in
+    if len = 0 then 0 else aux 1 1
+  in
+  IS.validate t4;
+  assert(count_unique total_arr = IS.size t4);
   T.teardown_pool pool
 
 let test_batch_insert () =
@@ -354,4 +422,4 @@ let test_batch_insert () =
     T.teardown_pool pool
   done
 
-let () = test_batch_insert ()
+let () = test_correctness ()
