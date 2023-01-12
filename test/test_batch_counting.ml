@@ -1,4 +1,4 @@
-let n = try int_of_string Sys.argv.(2) with _ -> 1_000_000
+let n = try int_of_string Sys.argv.(2) with _ -> 10_000_000
 
 module T = Domainslib.Task
 module C = Counters.BatchedCounter
