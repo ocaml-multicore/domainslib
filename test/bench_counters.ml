@@ -1,6 +1,6 @@
 module T = Domainslib.Task
 
-let nb = 100_000
+let nb = 1_000_000
 let add_domains = Domain.recommended_domain_count () - 1
 
 module Bench (C : Counters.S) = struct
@@ -31,7 +31,7 @@ module Bench_LockCounter = Bench (Counters.LockCounter)
 let () =
   Format.printf "@." ;
   Format.printf "     num_domains: " ;
-  for i = 2 to add_domains + 1 do
+  for i = 1 to add_domains + 1 do
     Format.printf " %5i   " i
   done ;
   Format.printf "@." ;

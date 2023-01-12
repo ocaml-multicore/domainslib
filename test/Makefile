@@ -1,9 +1,9 @@
-.PHONY=slist
-slist :
-	dune exec -- ./slist.exe
+batch :
+	dune exec -- ./test_batch_inserts.exe
+	dune exec -- ./test_batch_counting.exe
 
-bench :
+bench_slist :
 	dune exec -- ./bench_slist.exe
 
-counters:
-	dune exec -- ./counters.exe
+bench_counter :
+	dune exec -- ./bench_counters.exe

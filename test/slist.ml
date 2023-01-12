@@ -16,15 +16,17 @@ module Make (V : Comparable) : sig
   val validate : t -> unit
   val print_slist : t -> unit
   val par_insert : t -> T.pool -> V.t array -> unit
+  val par_insert_mock : t -> T.pool -> V.t array -> unit
 end = struct
-  type node =
-    | Hd of node array
-    | Node of data
-    | Null
-  and data = {
-    mutable value : V.t;
-    forward : node array
-  }
+
+  type t = {
+    hdr : node;
+    level : int ref;
+    maxlevel : int;
+    nil : node
+  } 
+  and node = Hd of node array | Node of data | Null
+  and data = {mutable value : V.t; forward : node array}
 
   let show = function
     | Hd _ -> "Hd"
@@ -35,13 +37,6 @@ end = struct
     | Hd forward -> "Hd -> [|" ^(Array.fold_right (fun node acc -> acc ^ "; " ^ (show node)) forward "")^"|]"
     | Node {forward;_} as n -> (show n)^"-> [|"^(Array.fold_right (fun node acc -> acc ^ "; " ^ (show node)) forward "")^"|]"
     | Null -> "Null"
-
-  type t = {
-    hdr : node;
-    level : int ref;
-    maxlevel : int;
-    nil : node
-  }
 
   let ( !> ) = function
     | Null -> failwith "[!>] Tried to dereference Null"
@@ -282,7 +277,7 @@ end = struct
       incr j;
       !j
 
-  let par_insert t (pool : T.pool) (elems : V.t array) =
+  let[@warning "-32"] par_insert t (pool : T.pool) (elems : V.t array) =
     (* Sort in acscending order *)
     Array.sort V.compare elems;
     let num_elems = remove_duplicates elems (Array.length elems) in
@@ -304,7 +299,7 @@ end = struct
       relate_nodes t idx intermediary
     done;
 
-    T.parallel_for pool ~chunk_size:1 ~start:0 ~finish:(num_elems-1)
+    T.parallel_for pool ~start:0 ~finish:(num_elems-1)
       ~body:(fun idx -> merge_list t idx intermediary);
 
     for i = 0 to num_elems-1 do
@@ -316,6 +311,86 @@ end = struct
         end
       done;
     done
+
+  let par_insert_mock _t (pool : T.pool) (elems : V.t array) =
+    let num_per_elem = 500 in
+    let num_elems = Array.length elems in
+    let size = num_per_elem * num_elems in
+
+    let g_touched = Array.init size (fun _ -> 0) in
+
+    T.parallel_for pool ~start:0 ~finish:(size - 1) ~body:
+      (fun i -> g_touched.(i) <- -1);
+
+    Array.iter (fun elt -> assert(elt = -1)) g_touched
+
+end
+
+module MakeImpBatched (V : Comparable) : sig
+  type t
+
+  val make : size:int -> batch_size:int -> unit -> t
+  val search : t -> V.t -> bool
+  val size : t -> int
+  val seq_ins : t -> V.t -> unit
+  val batch_ins : t -> T.pool -> V.t array -> unit
+  val imp_batch_ins : t -> T.pool -> V.t -> unit
+end = struct
+  module SL = Make(V)
+  module Q = Mpmc_queue
+  type t = {
+    slist : SL.t;
+    batch_size : int Atomic.t;
+    running : bool Atomic.t;
+    q : batch_op Q.t;
+    container : batch_op array;
+    stats : (int, int) Hashtbl.t
+  }
+  and
+    batch_op =
+    | Ins of t * V.t * (unit -> unit)
+    | Null
+
+  let make ~size ~batch_size() =
+    {slist = SL.make ~size ();
+     batch_size = Atomic.make 0;
+     running = Atomic.make false;
+     q = Q.make ();
+     container = Array.make batch_size Null;
+     stats = Hashtbl.create 100;
+    }
+
+  let rec try_launch pool t =
+    if Atomic.compare_and_set t.running false true then
+      match Q.pop t.q with
+      | Some op -> t.container.(0) <- op;
+        (let i = ref 1 in
+         while
+           match Q.pop t.q with
+           | Some op -> t.container.(!i) <- op; incr i; true
+           | None -> false
+         do () done;
+         let batch = Array.init !i (fun i -> t.container.(i)) in
+         let data = Array.mapi (fun _ op ->
+             match op with
+             | Ins (_, elt, set) -> set (); elt
+             | Null -> failwith "Error") batch in
+         SL.par_insert t.slist pool data;
+         Atomic.set t.running false;
+         try_launch pool t)
+      | None -> Atomic.set t.running false
+
+  let seq_ins t elt = SL.insert t.slist elt
+
+  let batch_ins t pool elt_arr = SL.par_insert t.slist pool elt_arr
+
+  let imp_batch_ins t pool elt =
+    let pr, set = T.promise () in
+    Q.push t.q (Ins (t, elt, set));
+    try_launch pool t;
+    T.await pool pr
+  let search t = SL.search t.slist
+  let size t = SL.size t.slist
 end
 
 let test_correctness () =
@@ -391,7 +466,7 @@ let test_correctness () =
   assert(count_unique total_arr = IS.size t4);
   T.teardown_pool pool
 
-let test_batch_insert () =
+(* let test_batch_insert () =
   Format.printf "@." ;
   Format.printf "num_domains: " ;
   for i = 1 to 8 do
@@ -420,6 +495,6 @@ let test_batch_insert () =
     let op_ms = (Int.to_float additional) /. (1000.0 *. (t1 -. t0)) in
     Format.printf "  %7s%!" (Printf.sprintf "%.0f" op_ms);
     T.teardown_pool pool
-  done
+  done *)
 
-let () = test_correctness ()
+(* let () = test_correctness () *)

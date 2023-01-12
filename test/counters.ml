@@ -1,6 +1,9 @@
 module T = Domainslib.Task
-let delay () = Unix.sleepf 0.000001
-    
+
+(* We switch this on to prevent the overhead of batching from dominating our performance gain *)
+let delay_on = false
+let delay () = if delay_on then Unix.sleepf 0.000001
+
 module CounterBase = struct
   module Q = Mpmc_queue
   type t = {
@@ -86,7 +89,7 @@ module BatchedCounter = struct
     let start = Atomic.get t.counter in
     let add_n = T.parallel_for_reduce pool ~start:0 ~finish:(len-1)
         ~body:(fun i ->
-            (* delay (); *)
+            delay ();
             match arr.(i) with
             | Incr (_, set) ->  set (); 1
             | Decr (_, set) ->  set (); -1
@@ -108,8 +111,8 @@ module BatchedCounter = struct
          par_prefix_sums pool t batch;
          (* Printf.printf "Batch size = %d%!\n" !i; *)
          (match Hashtbl.find_opt stats !i with
-         | Some cnt -> Hashtbl.replace stats !i (cnt + 1)
-         | None -> Hashtbl.add stats !i 1);
+          | Some cnt -> Hashtbl.replace stats !i (cnt + 1)
+          | None -> Hashtbl.add stats !i 1);
          Atomic.set t.running false;
          try_launch pool t)
       | None -> Atomic.set t.running false
@@ -149,7 +152,7 @@ module BatchedCounterFast : S = struct
       let add_n =
         T.parallel_for_reduce pool ~start:0 ~finish:(len-1)
           ~body:(fun _i ->
-              (* delay (); *)
+              delay ();
               match Q.pop t.q |> Option.get with (* no [batch] or [t.container] array *)
               | Incr (_, set) -> set (); 1
               | Decr (_, set) ->  set (); -1
@@ -193,7 +196,7 @@ module BatchedCounterFaster : S = struct
       let add_n =
         T.parallel_for_reduce pool ~start:0 ~finish:(len-1)
           ~body:(fun _ ->
-              (* delay (); *)
+              delay ();
               match Q.pop t.q |> Option.get with (* no [batch] or [t.container] array *)
               | Incr (_, set) -> set (); 1
               | Decr (_, set) ->  set (); -1
@@ -238,8 +241,8 @@ let run_stats () =
   let t = create n in
   let pool = T.setup_pool ~num_domains:7 () in
   T.run pool (fun () ->
-    T.parallel_for pool ~chunk_size ~start:1 ~finish:n ~body:
-      (fun _ -> increment pool t)
+      T.parallel_for pool ~chunk_size ~start:1 ~finish:n ~body:
+        (fun _ -> increment pool t)
     );
   let stat_len = Hashtbl.length stats in
   let stats_array = Array.make stat_len 0 in
