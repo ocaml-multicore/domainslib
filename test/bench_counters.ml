@@ -11,7 +11,7 @@ module Bench (C : Counters.S) = struct
       let t = C.create nb in
       let t0 = Unix.gettimeofday () in
       T.run pool (fun () ->
-          T.parallel_for pool ~chunk_size:(nb/4092) ~start:1 ~finish:nb ~body:(fun _ -> C.increment pool t)
+          T.parallel_for pool ~chunk_size:(nb/4096) ~start:1 ~finish:nb ~body:(fun _ -> C.increment pool t)
         );
       assert (C.unsafe_get t = nb);
       let t1 = Unix.gettimeofday () in

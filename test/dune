@@ -12,8 +12,7 @@
   bench_counters
   slist
   test_batch_inserts
-  bench_slist
-  new_bench_slist)
+  bench_slist)
  (libraries domainslib unix)
  (modules
   mpmc_queue
@@ -23,8 +22,7 @@
   bench_counters
   slist
   test_batch_inserts
-  bench_slist
-  new_bench_slist)
+  bench_slist)
  (modes native))
 
 (test
