@@ -9,7 +9,7 @@ To read more about Batching, this paper introduces the idea https://www.cse.wust
 Simulating standard parallel counters against batched counters (Workload: 1_000_000 increment operations)
 ```
      num_domains:      1        2        3        4        5        6        7        8   
-      chunk_size:      1        1        1	     1  	    1  	   1 	  1        1
+      chunk_size:      1        1        1        1        1        1        1        1
                        => Theoretical upper limit of 10_000 operations in a batch
 
                       (SEQ)
@@ -29,7 +29,7 @@ However, there is a non-obvious "best" size for a batch.
 ```
      num_domains:      1        2        3        4        5        6        7        8 
 default chunk_size:  10000     62500    41666    31250    25000    20833    17857    15625
- batch upper limit:    1        16	      32       32       64       64       64       64
+ batch upper limit:    1        16       32       32       32       64       64       64
 
      LockCounter:     26.26    49.12   138.62    47.46    59.13    60.18    70.14    73.58  ms
  LockfreeCounter:      6.17    34.87    51.01    63.11    76.32   110.79   166.87   215.01  ms
@@ -109,14 +109,14 @@ Inserts: 100,000 elements
 
        num_domains:      2        3        4        5        6        7        8
 default chunk_size:    62500    41666    31250    25000    20833    17857    15625
- batch upper limit:     16	    32       32       64       64       64       64
+ batch upper limit:      16       32       32       32       64       64       64
 
            Seq_ins:     299      284      299      301      298      284      297  ops/ms
        Batched_ins:     346      432      465      563      585      644      627  ops/ms
 
 
        num_domains:      2        3        4        5        6        7        8
-default chunk_size:     787	   787      787	 787	     787	    787      787  => Theoretical upper limit of 127 operations in a batch
+default chunk_size:     787      787      787      787      787      787      787  => Theoretical upper limit of 127 operations in a batch
 
            Seq_ins:     299      284      299      301      298      284      297  ops/ms
        Batched_ins:     346      432      465      563      585      644      627  ops/ms
