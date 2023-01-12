@@ -9,7 +9,8 @@ To read more about Batching, this paper introduces the idea https://www.cse.wust
 Simulating standard parallel counters against batched counters (Workload: 1_000_000 increment operations)
 ```
      num_domains:      2        3        4        5        6        7        8
-      chunk_size:      1	1	 1	  1	   1	    1	     1     => Theoretical upper limit of 10_000 operations in a batch
+      chunk_size:      1        1        1	      1    	   1  	    1 	     1
+                       => Theoretical upper limit of 10_000 operations in a batch
 
      LockCounter:    187.35   234.99   193.73   202.04   217.13   218.93   262.74  ms
  LockfreeCounter:    181.52   151.18   119.17    99.30    93.35    91.86    92.90  ms
@@ -27,7 +28,7 @@ However, there is a non-obvious "best" size for a batch.
 ```
        num_domains:      2        3        4        5        6        7       8
 default chunk_size:    62500    41666    31250    25000    20833    17857    15625
- batch upper limit:     16	 32       32       64       64       64       64
+ batch upper limit:     16	      32       32       64       64       64       64
 
        LockCounter:    139.79    75.27   104.57   135.62   139.70   145.56   159.17  ms
    LockfreeCounter:     50.48    68.80    75.45    80.90    83.71    93.58    92.39  ms
@@ -37,7 +38,8 @@ default chunk_size:    62500    41666    31250    25000    20833    17857    156
 
 
        num_domains:      2        3        4        5        6        7        8
-        chunk_size:     244      244      244      244      244      244      244 => Theoretical upper limit of 4096 operations in a batch
+        chunk_size:     244      244      244      244      244      244      244 
+                        => Theoretical upper limit of 4096 operations in a batch
 
        LockCounter:    148.29    72.19   105.59   134.44   138.07   154.28   159.66
    LockfreeCounter:     42.84    62.99    64.41    68.87    63.32    70.21    70.14
@@ -105,7 +107,7 @@ Inserts: 100,000 elements
 
        num_domains:      1        2        3        4        5        6        7
 default chunk_size:    62500    41666    31250    25000    20833    17857    15625
- batch upper limit:     16	 32       32       64       64       64       64
+ batch upper limit:     16	      32       32       64       64       64       64
 
            Seq_ins:     299      284      299      301      298      284      297  ops/ms
        Batched_ins:     346      432      465      563      585      644      627  ops/ms

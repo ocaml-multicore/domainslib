@@ -6,10 +6,10 @@ let add_domains = Domain.recommended_domain_count () - 1
 module Bench (C : Counters.S) = struct
 
   let run () =
-    for num_domains = 0 to add_domains do
+    for num_domains = 1 to add_domains do
       let pool = T.setup_pool ~num_domains () in
-      let t0 = Unix.gettimeofday () in
       let t = C.create nb in
+      let t0 = Unix.gettimeofday () in
       T.run pool (fun () ->
           T.parallel_for pool ~chunk_size:(nb/4092) ~start:1 ~finish:nb ~body:(fun _ -> C.increment pool t)
         );
