@@ -86,8 +86,8 @@ let rec send' {buffer_size; contents} v ~polling =
         let new_contents = Empty {receivers= receivers'} in
         if Atomic.compare_and_set contents old_contents new_contents
         then begin
-          r := Some v;
           Mutex.lock mc.mutex;
+          r := Some v;
           Mutex.unlock mc.mutex;
           Condition.broadcast mc.condition;
           true
@@ -192,8 +192,8 @@ let rec recv' {buffer_size; contents} ~polling =
           in
           if Atomic.compare_and_set contents old_contents new_contents
           then begin
-            c := Notified;
             Mutex.lock mc.mutex;
+            c := Notified;
             Mutex.unlock mc.mutex;
             Condition.broadcast mc.condition;
             Some m
@@ -206,8 +206,8 @@ let rec recv' {buffer_size; contents} ~polling =
           in
           if Atomic.compare_and_set contents old_contents new_contents
           then begin
-            sc := Notified;
             Mutex.lock mc.mutex;
+            sc := Notified;
             Mutex.unlock mc.mutex;
             Condition.broadcast mc.condition;
             Some m
