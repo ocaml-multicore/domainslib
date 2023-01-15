@@ -98,7 +98,8 @@ module BatchedCounter = struct
     Atomic.set t.counter (start + add_n)
 
   let rec try_launch pool t =
-    if Atomic.compare_and_set t.running false true then
+    if Atomic.get t.batch_size > 0
+    && Atomic.compare_and_set t.running false true then
       match Q.pop t.q with
       | Some op -> t.container.(0) <- op;
         (let i = ref 1 in
@@ -120,18 +121,21 @@ module BatchedCounter = struct
   let increment pool t =
     let pr, set = T.promise () in
     Q.push t.q (Incr (t, set));
+    Atomic.incr t.batch_size;
     try_launch pool t;
     T.await pool pr
 
   let decrement pool t =
     let pr, set = T.promise () in
     Q.push t.q (Decr (t, set));
+    Atomic.incr t.batch_size;
     try_launch pool t;
     T.await pool pr
 
   let get pool t =
     let pr, set = T.promise () in
     Q.push t.q (Get (t, set));
+    Atomic.incr t.batch_size;
     try_launch pool t;
     T.await pool pr
 end

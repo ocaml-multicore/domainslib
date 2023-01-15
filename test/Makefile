@@ -7,3 +7,6 @@ bench_slist :
 
 bench_counter :
 	dune exec -- ./bench_counters.exe
+	
+test :
+	dune exec -- ./playground.exe

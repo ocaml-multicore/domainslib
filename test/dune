@@ -4,6 +4,11 @@
  (modules test_chan)
  (modes native))
 
+(test
+ (name playground)
+ (libraries domainslib)
+ (modules playground))
+
 (tests
  (names
   bench_mpmc_queue

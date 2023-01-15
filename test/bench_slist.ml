@@ -4,7 +4,7 @@ module type Slist = module type of Slist.MakeImpBatched
 module Bench (SLF : Slist) = struct
   module SL = SLF(Int)
 
-  let preset_size = 1_000_000
+  let preset_size = 10_000_000
   let additional = 100_000
   let total_size = preset_size + additional
   let batch_size = 4096
@@ -47,8 +47,8 @@ module Bench (SLF : Slist) = struct
 
   let run_imp_batch () =
     let test_imp_batch t pool () =
-      let chunk_size = 127 / additional in
-      T.parallel_for pool ~chunk_size ~start:0 ~finish:(additional-1) ~body:(fun i ->
+      (* let chunk_size = batch_size / additional in *)
+      T.parallel_for pool (*~chunk_size*) ~start:0 ~finish:(additional-1) ~body:(fun i ->
           SL.imp_batch_ins t pool (additional_arr.(i)))
     in
     run test_imp_batch

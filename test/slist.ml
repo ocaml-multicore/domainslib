@@ -467,24 +467,24 @@ let test_correctness () =
   T.teardown_pool pool
 
 (* let test_batch_insert () =
-  Format.printf "@." ;
-  Format.printf "num_domains: " ;
-  for i = 1 to 8 do
+   Format.printf "@." ;
+   Format.printf "num_domains: " ;
+   for i = 1 to 8 do
     Format.printf " %5i   " i
-  done ;
-  Format.printf "@." ;
-  Format.printf "Batch_ins: " ;
-  let module ISL = Make (Int) in
-  let preset_size = 1_000_000 in
-  let additional = 1_00_000 in
-  let total_size = preset_size + additional in
-  let max_rdm_int = (Int.shift_left 1 30) - 1 in
-  let preset_arr =
+   done ;
+   Format.printf "@." ;
+   Format.printf "Batch_ins: " ;
+   let module ISL = Make (Int) in
+   let preset_size = 1_000_000 in
+   let additional = 1_00_000 in
+   let total_size = preset_size + additional in
+   let max_rdm_int = (Int.shift_left 1 30) - 1 in
+   let preset_arr =
     Random.init 0;
     Array.init preset_size (fun _ -> Random.int max_rdm_int) in
-  let additional_arr =
+   let additional_arr =
     Array.init additional (fun _ -> Random.int max_rdm_int) in
-  for num_domains = 0 to 7 do
+   for num_domains = 0 to 7 do
     let t = ISL.make ~size:total_size () in
     let pool = T.setup_pool ~num_domains () in
     Array.iter (fun elt -> ISL.insert t elt) preset_arr;
@@ -495,6 +495,6 @@ let test_correctness () =
     let op_ms = (Int.to_float additional) /. (1000.0 *. (t1 -. t0)) in
     Format.printf "  %7s%!" (Printf.sprintf "%.0f" op_ms);
     T.teardown_pool pool
-  done *)
+   done *)
 
 (* let () = test_correctness () *)
