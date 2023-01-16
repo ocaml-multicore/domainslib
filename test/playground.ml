@@ -12,7 +12,6 @@ module BatchedCounter = struct
     | Decr of (unit -> unit)
     | Get of (int -> unit)
 
-  let batch_limit = 4096
   let create pool () = {counter = Atomic.make 0; pool}
 
   let bop t arr _num =
