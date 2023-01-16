@@ -9,7 +9,7 @@ end
 
 module type TSContainer = sig
   type 'a t
-  val create : batch_limit:int -> unit -> 'a t
+  val create : ?batch_limit:int -> unit -> 'a t
   val add : 'a t -> 'a -> unit
   val get : 'a t -> 'a array * int
   val size : 'a t -> int
@@ -21,11 +21,11 @@ module QCon : TSContainer = struct
     size : int Atomic.t;
     batch_limit : int
   }
-  let create ~batch_limit () = 
+  let create ?(batch_limit=max_int) () = 
     {
       chan = Chan.make_unbounded ();
       size = Atomic.make 0;
-      batch_limit
+      batch_limit;
     }
   let add t elt =
     let _ = Atomic.fetch_and_add t.size 1 in
@@ -73,7 +73,6 @@ module Make (DS : DS) : sig
   type batch_op = DS.batch_op
 
   val create : Task.pool -> t
-  val batch_limit : int
   val batchify : t -> batch_op -> 'a Task.promise -> 'a 
 end = struct
 
@@ -86,12 +85,11 @@ end = struct
     running : bool Atomic.t;
     container : batch_op QCon.t
   }
-  let batch_limit = DS.batch_limit
   let create pool = 
     { pool;
       ds = DS.create pool ();
       running = Atomic.make false;
-      container = Container.create ~batch_limit () }
+      container = Container.create () }
 
   let rec try_launch t =
     if Container.size t.container > 0 

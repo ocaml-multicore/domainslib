@@ -19,9 +19,9 @@ module BatchedCounter = struct
     let len = Array.length arr in
     let start = Atomic.get t.counter in
     let add_n = T.parallel_for_reduce t.pool ~start:0 ~finish:(len-1)
-        ~body:(
-          delay ();  
-          fun i -> match arr.(i) with
+        ~body:(fun i -> 
+            delay ();
+            match arr.(i) with
             | Incr set ->  set (); 1
             | Decr set ->  set (); -1
             | Get set -> set start; 0) ( + ) 0 
@@ -48,13 +48,13 @@ module ImpBatchedCounter = struct
 end
 
 let main () =
-  let n = 1_000_000 in
+  let n = 100_000 in
   for num_domains = 0 to 7 do
     let pool = T.setup_pool ~num_domains () in
     let t = ImpBatchedCounter.create pool in
     let t0 = Unix.gettimeofday () in
     T.run pool (fun () ->
-        T.parallel_for pool ~start:1 ~finish:n ~body:(fun _ -> ImpBatchedCounter.increment t)
+        T.parallel_for pool ~chunk_size:(n/4096) ~start:1 ~finish:n ~body:(fun _ -> ImpBatchedCounter.increment t)
       );
     assert (ImpBatchedCounter.get t = n);
     let t1 = Unix.gettimeofday () in
