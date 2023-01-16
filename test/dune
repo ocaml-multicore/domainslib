@@ -6,7 +6,7 @@
 
 (test
  (name playground)
- (libraries domainslib)
+ (libraries domainslib unix)
  (modules playground))
 
 (tests

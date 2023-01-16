@@ -1,7 +1,7 @@
 module T = Domainslib.Task
 
 (* We switch this on to prevent the overhead of batching from dominating our performance gain *)
-let delay_on = false
+let delay_on = true
 let delay () = if delay_on then Unix.sleepf 0.000001
 
 module CounterBase = struct
