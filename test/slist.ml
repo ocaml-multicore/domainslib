@@ -335,6 +335,7 @@ module MakeImpBatched (V : Comparable) : sig
   val seq_ins : t -> V.t -> unit
   val batch_ins : t -> T.pool -> V.t array -> unit
   val imp_batch_ins : t -> T.pool -> V.t -> unit
+  val print_stats : t -> unit
 end = struct
   module SL = Make(V)
   module Q = Mpmc_queue
@@ -371,6 +372,9 @@ end = struct
            | None -> false
          do () done;
          let batch = Array.init !i (fun i -> t.container.(i)) in
+         (match Hashtbl.find_opt t.stats !i with
+          | Some cnt -> Hashtbl.replace t.stats !i (cnt + 1)
+          | None -> Hashtbl.add t.stats !i 1);
          let data = Array.mapi (fun _ op ->
              match op with
              | Ins (_, elt, set) -> set (); elt
@@ -391,6 +395,16 @@ end = struct
     T.await pool pr
   let search t = SL.search t.slist
   let size t = SL.size t.slist
+
+  let print_stats t = 
+    let stat_len = Hashtbl.length t.stats in
+    let stats_array = Array.make stat_len 0 in
+    let i = ref 0 in
+    Hashtbl.iter (fun x _ -> stats_array.(!i) <- x; incr i) t.stats;
+    Array.sort (Int.compare) stats_array;
+    Array.iter (fun x ->
+        let value = Hashtbl.find t.stats x in
+        Printf.printf "%d -> %d\n" x value) stats_array;
 end
 
 let test_correctness () =
@@ -466,35 +480,24 @@ let test_correctness () =
   assert(count_unique total_arr = IS.size t4);
   T.teardown_pool pool
 
-(* let test_batch_insert () =
-   Format.printf "@." ;
-   Format.printf "num_domains: " ;
-   for i = 1 to 8 do
-    Format.printf " %5i   " i
-   done ;
-   Format.printf "@." ;
-   Format.printf "Batch_ins: " ;
-   let module ISL = Make (Int) in
-   let preset_size = 1_000_000 in
-   let additional = 1_00_000 in
-   let total_size = preset_size + additional in
-   let max_rdm_int = (Int.shift_left 1 30) - 1 in
-   let preset_arr =
+let test_impbatch_insert () =
+  let module ISL = MakeImpBatched (Int) in
+  let preset_size = 1_000_000 in
+  let additional = 1_00_000 in
+  let total_size = preset_size + additional in
+  let max_rdm_int = (Int.shift_left 1 30) - 1 in
+  let preset_arr =
     Random.init 0;
     Array.init preset_size (fun _ -> Random.int max_rdm_int) in
-   let additional_arr =
+  let additional_arr =
     Array.init additional (fun _ -> Random.int max_rdm_int) in
-   for num_domains = 0 to 7 do
-    let t = ISL.make ~size:total_size () in
-    let pool = T.setup_pool ~num_domains () in
-    Array.iter (fun elt -> ISL.insert t elt) preset_arr;
-    Gc.full_major ();
-    let t0 = Unix.gettimeofday () in
-    T.run pool (fun () -> ISL.par_insert t pool additional_arr);
-    let t1 = Unix.gettimeofday () in
-    let op_ms = (Int.to_float additional) /. (1000.0 *. (t1 -. t0)) in
-    Format.printf "  %7s%!" (Printf.sprintf "%.0f" op_ms);
-    T.teardown_pool pool
-   done *)
+  let t = ISL.make ~size:total_size ~batch_size:total_size () in
+  let pool = T.setup_pool ~num_domains:7 () in
+  T.run pool (fun () -> 
+      ISL.batch_ins t pool preset_arr;
+      T.parallel_for pool ~start:0 ~finish:(additional-1) ~body:
+        (fun i -> ISL.imp_batch_ins t pool additional_arr.(i)));
+  ISL.print_stats t;
+  T.teardown_pool pool
 
-(* let () = test_correctness () *)
+(* let () = test_impbatch_insert () *)

@@ -4,91 +4,70 @@ This fork introduces support for a technique called "batching" which aims to inc
 
 To read more about Batching, this paper introduces the idea https://www.cse.wustl.edu/~kunal/resources/Papers/batcher.pdf
 
-## Preliminary work and test results
-### Batched Counter
-Simulating standard parallel counters against batched counters (Workload: 1_000_000 increment operations)
+# Preliminary work and test results
+These benchmarks were run on an 8-core Intel x86-64 Machine
+## Batched Counter
+Simulating standard parallel counters against batched counters
 ```
-     num_domains:      1        2        3        4        5        6        7        8   
-      chunk_size:      1        1        1        1        1        1        1        1
-                       => Theoretical upper limit of 10_000 operations in a batch
+(Workload: 1_000_000 increment operations)
 
-                      (SEQ)
-     LockCounter:    240.07   281.09   241.47   263.38   309.24   316.85   308.37   363.86   ms
- LockfreeCounter:    193.72   151.41   104.89   107.33   126.03   142.75   153.77   163.58   ms
-  BatchedCounter:    347.68   653.93   547.71   476.24   480.47   507.11   473.90   496.09   ms
- BatchedCounterF:    318.50   444.43   554.21   465.86   546.57   498.28   518.17   515.28   ms
-BatchedCounterFF:    196.00   157.55   119.03   124.75   176.78   224.58   262.69   285.167  ms
+                     (SEQ)
+     num_domains:      1        2        3        4        5        6        7        8   
+     batch limit:      ----------------------- 1_000_000 operations ------------------------
+     LockCounter:    194.01   248.31   182.78   194.45   197.28   205.97   220.37   214.56  ms
+ LockfreeCounter:    185.98   226.67   133.79   105.31    96.02   102.22    94.63    91.45  ms
+
+  BatchedCounter:    368.80  1198.58   903.25   577.27   557.61   588.81   558.93   542.13  ms
+ BatchedCounterF:    338.56  1204.10   855.68   718.11   664.72   621.39   570.63   555.96  ms
+BatchedCounterFF:    189.30   177.86   154.45   137.15   175.45   209.81   211.35   244.32  ms
 ```
-For standard parallel counters (LockCounter & LockfreeCounter), performance degrades as the number of cores increase. BatchedCounters on the other hand have more modal behaviour, showing best performance at 4 cores and then getting worse after. The chunk_size here is a implementation detail of Domainslib `parallel_for` which refers to the number of tasks that will be grouped together to run asynchronously. A chunk_size of 1 means that every function will as it's own asynchronous task
+The batch_limit is configured by adjusing the chunk_size of `parallel_for` which determines the number of tasks grouped together to run asynchronously. A chunk_size of 1 corresponds to 1_000_000 operations spawned.
+
+For standard parallel counters (LockCounter & LockfreeCounter), performance degrades as the number of cores increase. BatchedCounters on the other hand scale better, plateuing around 7 cores.
 
 - BatchedCounter: Disjoint BOP operation, sequential chokepoint to create the "batch"
-- BatchedCounterF: Reduce sequential chokepoint from having to generate the "batch"
+- BatchedCounterF: No sequential chokepoint from generating the "batch", integrated BOP
 - BatchedCounterFF: Use fast and slow path
 
-However, there is a non-obvious "best" size for a batch.
+Turns out, there is a non-obvious "best" batch_limit.
 ```
-     num_domains:      1        2        3        4        5        6        7        8 
-default chunk_size:  10000     62500    41666    31250    25000    20833    17857    15625
- batch upper limit:    1        16       32       32       32       64       64       64
+`parallel_for` default batch_limit 
 
-     LockCounter:     26.26    49.12   138.62    47.46    59.13    60.18    70.14    73.58  ms
- LockfreeCounter:      6.17    34.87    51.01    63.11    76.32   110.79   166.87   215.01  ms
-  BatchedCounter:    120.66   420.63   334.80   291.40   342.05   389.58   430.57   439.56  ms
- BatchedCounterF:     99.30   391.14   326.98   264.88   324.47   391.49   414.29   432.59  ms
-BatchedCounterFF:      6.22    23.07    11.55    13.91    11.45    14.19    18.26    12.37  ms
+                      (SEQ)
+     num_domains:       1        2        3        4        5        6        7        8 
+     batch limit:       1        16       32       32       32       64       64       64
+     LockCounter:     14.15   153.51    72.31    91.60   130.02   136.91   149.42   151.71  ms
+ LockfreeCounter:      3.62    45.17    60.92    62.88    67.11    71.20    69.21    68.71  ms
+
+  BatchedCounter:    123.09   517.09   409.30   383.17   323.59   321.24   302.19   337.08  ms
+ BatchedCounterF:    102.82   492.39   396.41   355.16   289.69   277.99   265.32   260.26  ms
+BatchedCounterFF:      3.65    35.73    14.61    19.94    19.44    21.80    24.64    24.21  ms
 
 
-       num_domains:      1        2        3        4        5        6        7        8
-        chunk_size:     244      244      244      244      244      244      244      244
-                        => Theoretical upper limit of 4096 operations in a batch
+                     (SEQ)
+     num_domains:      1        2        3        4        5        6        7        8
+     batch limit:      ------------------------ 4096 operations ------------------------
+     LockCounter:     16.56   136.70    74.34   109.33   129.83   140.08   134.13   152.98  ms
+ LockfreeCounter:      5.36    45.93    67.13    72.48    80.48    85.65    90.23    90.95  ms
 
-       num_domains:      1        2        3        4        5        6        7        8   
-     LockCounter:     30.68    50.33   128.55    41.42    59.73    65.77    70.72    79.58  ms
- LockfreeCounter:      7.26    32.90    51.11    64.75    82.21   118.31   180.12   222.33  ms
-  BatchedCounter:    122.87   263.97   217.34   185.96   221.44   257.60   279.33   285.27  ms
- BatchedCounterF:    107.86   265.55   220.93   179.26   226.05   250.14   262.84   266.55  ms
-BatchedCounterFF:      7.51    20.86    22.57    22.78    28.56    42.71    50.02    51.10  ms
+  BatchedCounter:    125.11   341.46   290.97   252.76   241.20   233.06   227.60   234.72  ms
+ BatchedCounterF:    105.91   335.79   281.67   253.17   235.17   207.34   206.42   193.45  ms
+BatchedCounterFF:      5.17    21.03    24.60    34.94    48.75    53.42    51.87    33.81  ms
 ```
-My testing shows that the upper limit of 4096 operations per batch provides the best throughput for this batched counter. However, this is unlikely to be the best batch size for all batched data structures.
+My testing shows that a batch limit of 4096 operations per batch yields the best throughput for this batched counter. However, this "optimal" batch limit is highly dependent on performance of the batched operations as well as the workload of the core program.
 
-Other statistics
+### (SEQ) always performs better in both traditional synchronization and batching
+1. Traditional synchronization - Overhead due to contention for shared resource dominates parallelism benefits
+2. Batching - Overhead of batching dominates the speedup of batching
+
+### (SEQ) performance difference between sections
+The large difference in (SEQ) performance between the two sections are due to the number of tasks spawned. In the previous section, 1_000_000 tasks are spawned, causing contention in the scheduling. In the current section, the number of tasks spawned is greatly reduced, at most being 4096 tasks.
+
+### Batching performance analysis
+Like the earlier section, Batched counters from 2 -> 8 domains demonstrate mostly steady speedup and then some plateuing towards the end (Some slowdown is also observed). Batched counters are a unique case because the cost of increment or decrement operations are so cheap that the benefits of batching are hard to see. The below experiments are to show how `parallel_prefix_sums` which is the underlying batch operation without implicit batching shows marginal speedup after 5 domains. We also show how inserting delays to exaggerate the performance gain of batching reveals consistent speedup.
+
 ```
-Statistics of batch sizes (batch limit 4096)
-1 -> 3
-4 -> 1
-5 -> 2
-7 -> 1
-12 -> 2
-20 -> 1
-29 -> 1
-65 -> 1
-101 -> 1
-642 -> 1
-1420 -> 1
-2874 -> 1
-3047 -> 1
-3439 -> 1
-3508 -> 1
-3517 -> 2
-3518 -> 3
-3519 -> 74
-3520 -> 34
-3521 -> 1
-3523 -> 2
-3530 -> 1
-3767 -> 1
-4267 -> 1
-4559 -> 1
-4593 -> 1
-4663 -> 1
-4667 -> 2
-4668 -> 1
-4669 -> 4
-4670 -> 11
-4671 -> 61
-4672 -> 39
-
-Performance of par_prefix_sums (10_000_000 ops)
+Performance of par_prefix_sums 10_000_000 ops (batch limit 4096)
     num_domains:      1        2        3        4        5        6        7        8
 Par_prefix_sum:    375.19   144.77   124.04   104.43    90.87    83.14    84.19   109.89
 
@@ -101,45 +80,74 @@ Implicit batching with sleep delay (100_000 ops with 1ms delay)
 BatchedCounter:   5268.99  2673.35  1844.65  1345.40  1096.41   929.03   830.48   694.64
 ```
 
-### Batched Skip List
+Implicit Batch size statistics (batch limit 4096)
+```
+batch_size -> bop performed
+1          -> 3
+4          -> 1
+5          -> 2
+7          -> 1
+12         -> 2
+20         -> 1
+29         -> 1
+65         -> 1
+101        -> 1
+642        -> 1
+1420       -> 1
+2874       -> 1
+3047       -> 1
+3439       -> 1
+3508       -> 1
+3517       -> 2
+3518       -> 3
+3519       -> 74
+3520       -> 34
+3521       -> 1
+3523       -> 2
+3530       -> 1
+3767       -> 1
+4267       -> 1
+4559       -> 1
+4593       -> 1
+4663       -> 1
+4667       -> 2
+4668       -> 1
+4669       -> 4
+4670       -> 11
+4671       -> 61
+4672       -> 39
+```
+## Batched Skip List
 Skip-list sequential (No concurrency control) inserts vs batched inserts
 ```
 Initialized: 1 Million elements
 Inserts: 100,000 elements
 
        num_domains:      2        3        4        5        6        7        8
-default chunk_size:    62500    41666    31250    25000    20833    17857    15625
- batch upper limit:      16       32       32       32       64       64       64
-
+       batch limit:      16       32       32       32       64       64       64
            Seq_ins:     299      284      299      301      298      284      297  ops/ms
        Batched_ins:     346      432      465      563      585      644      627  ops/ms
 
 
        num_domains:      2        3        4        5        6        7        8
-default chunk_size:     787      787      787      787      787      787      787  => Theoretical upper limit of 127 operations in a batch
-
+       batch limit:     ------------------------ 127 operations ------------------------
            Seq_ins:     299      284      299      301      298      284      297  ops/ms
        Batched_ins:     346      432      465      563      585      644      627  ops/ms
 
-------------------------------------------------------------------------------------
+```
+```
 Initialized: 10 Million elements
 Inserts: 100,000 elements
 
-  num_domains:      2        3        4        5        6        7        8
-Batched_ins:       156      240      260      409      432      423      522  ops/ms
-    Seq_ins:       137      142      153      153      149      153      149  ops/ms
-
+        num_domains:      2        3        4        5        6        7        8
+        batch limit:     ------------------------ 127 operations ------------------------
+        Batched_ins:     156      240      260      409      432      423      522  ops/ms
+            Seq_ins:     137      142      153      153      149      153      149  ops/ms
 
 ```
-Other Statistics (1 Million inserts)
+BOP performance
 ```
-batch_size -> bop performed
-1          -> 15626
-9          -> 1
-62         -> 10
-63         -> 15615
-
-Performance of parallel insert (1 million preset, 100_000 inserts)
+Performance of parallel insert 1 million preset and 100_000 inserts (batch limit 127)
 num_domains:      1        2        3        4        5        6        7        8
 Batch_ins:       236      279      294      303      301      304      309      309
 
@@ -147,10 +155,19 @@ Performance of parallel insert (1 million preset, 1 million inserts)
 num_domains:      1        2        3        4        5        6        7        8
 Batch_ins:       459      730      845      886      896      909      914      924
 ```
-
-
-Not sure why there is a slight dip in performance using 5 domains?
-
+Implicit Batch size statistics (batch limit 127)
+```
+batch_size -> bop performed
+3          -> 2
+18         -> 1
+30         -> 5
+31         -> 774
+41         -> 1
+50         -> 1
+82         -> 1
+94         -> 4
+95         -> 776
+```
 ## Notes
 There is an interesting trade-off between the number of parallel operations running and the cost of parallelising tasks. It seems like creating huge batches, tests with batches as big as 15,000 does not beat tests with batches of size 60. This trade-off seems to be measured in the chunk_size calculation of the parallel-for algorithm. However, it does not always seem to be the best choice especially because it is dependent on how fast the batched operations run vs the sequential operations. I also suspect that if we can avoid the sequential bottle neck when we pass around the operation array, we may be able to attain more consistent behaviour
 
