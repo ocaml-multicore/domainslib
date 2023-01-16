@@ -3,8 +3,7 @@ module type DS = sig
   type batch_op
 
   val batch_limit : int
-  val pool : Task.pool
-  val create : unit -> t
+  val create : Task.pool -> unit -> t
   val bop : t -> batch_op array -> int -> unit
 end
 
@@ -73,25 +72,28 @@ module Make (DS : DS) : sig
   type t
   type batch_op = DS.batch_op
 
+  val create : Task.pool -> t
   val batch_limit : int
-  val batchify : batch_op -> 'a Task.promise -> 'a 
+  val batchify : t -> batch_op -> 'a Task.promise -> 'a 
 end = struct
 
   module Container = QCon
 
   type batch_op = DS.batch_op
   type t = {
+    pool : Task.pool;
     ds : DS.t;
     running : bool Atomic.t;
     container : batch_op QCon.t
   }
   let batch_limit = DS.batch_limit
-  let t = 
-    { ds = DS.create ();
+  let create pool = 
+    { pool;
+      ds = DS.create pool ();
       running = Atomic.make false;
       container = Container.create ~batch_limit () }
 
-  let rec try_launch pool =
+  let rec try_launch t =
     if Container.size t.container > 0 
     && Atomic.compare_and_set t.running false true 
     then
@@ -99,12 +101,12 @@ end = struct
         let batch, size = Container.get t.container in
         DS.bop t.ds batch size;
         Atomic.set t.running false;
-        try_launch pool
+        try_launch t
       end
 
-  let batchify op_set pr =
+  let batchify t op_set pr =
     Container.add t.container op_set;
-    try_launch ();
-    Task.await DS.pool pr
+    try_launch t;
+    Task.await t.pool pr
 
 end
