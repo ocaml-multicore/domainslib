@@ -2,7 +2,6 @@ module type DS = sig
   type t
   type batch_op
 
-  val batch_limit : int
   val create : Task.pool -> unit -> t
   val bop : t -> batch_op array -> int -> unit
 end
