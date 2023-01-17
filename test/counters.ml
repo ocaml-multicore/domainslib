@@ -1,7 +1,10 @@
 module T = Domainslib.Task
 
+let run = try bool_of_string Sys.argv.(1) with _ -> false
+let batch_size = 4096
+let operations = 10_000_000
 (* We switch this on to prevent the overhead of batching from dominating our performance gain *)
-let delay_on = false
+let delay_on = try bool_of_string Sys.argv.(2) with _ -> false
 let delay () = if delay_on then Unix.sleepf 0.000001
 
 module CounterBase = struct
@@ -110,7 +113,6 @@ module BatchedCounter = struct
          do () done;
          let batch = Array.init !i (fun i -> t.container.(i)) in
          par_prefix_sums pool t batch;
-         (* Printf.printf "Batch size = %d%!\n" !i; *)
          (match Hashtbl.find_opt stats !i with
           | Some cnt -> Hashtbl.replace stats !i (cnt + 1)
           | None -> Hashtbl.add stats !i 1);
@@ -240,21 +242,19 @@ end
 
 let run_stats () =
   let open BatchedCounter in
-  let n = 10_000_000 in
-  let chunk_size = n / 4096 in
-  let t = create n in
+  let chunk_size = Util.chunk_calculator ~batch_size ~operations () in
+  let t = create operations in
   let pool = T.setup_pool ~num_domains:7 () in
   T.run pool (fun () ->
-      T.parallel_for pool ~chunk_size ~start:1 ~finish:n ~body:
+      T.parallel_for pool ~chunk_size ~start:1 ~finish:operations ~body:
         (fun _ -> increment pool t)
     );
-  let stat_len = Hashtbl.length stats in
-  let stats_array = Array.make stat_len 0 in
-  let i = ref 0 in
-  Hashtbl.iter (fun x _ -> stats_array.(!i) <- x; incr i) stats;
-  Array.sort (Int.compare) stats_array;
-  Array.iter (fun x ->
-      let value = Hashtbl.find stats x in
-      Printf.printf "%d -> %d\n" x value) stats_array;
+  Util.print_implicit_batch_stats stats;
   T.teardown_pool pool
 
+let () =   
+  if run then 
+    begin 
+      Printf.printf "\nRunning ImpBatchCounter Statistics, batch_size = %d, ops = %d\n%!" batch_size operations;
+      run_stats ()
+    end;

@@ -1,16 +1,17 @@
-let n = try int_of_string Sys.argv.(2) with _ -> 1_000_000
+let n = try int_of_string Sys.argv.(3) with _ -> 1_000_000
 
 module T = Domainslib.Task
 module C = Counters.BatchedCounter
 
 let () =
+  Printf.printf "\n\n\nRunning Par_Prefix_sum's benchmarks, ops = %d\n" n;
   Format.printf "@." ;
   Format.printf "     num_domains: " ;
   for i = 0 to 7 do
     Format.printf " %5i   " (i + 1)
   done ;
   Format.printf "@." ;
-  Format.printf "Par_prefix_sum: " ;
+  Format.printf "  Par_prefix_sum: " ;
   for num_domains = 0 to 7 do
     let pool = T.setup_pool ~num_domains () in
     let t = C.create n in
@@ -26,4 +27,5 @@ let () =
     Format.printf "  %7s%!"
       (Printf.sprintf "%.2f" (1000.0 *. (t1 -. t0)));
     T.teardown_pool pool;
-  done
+  done;
+  Printf.printf "\n\n\n"

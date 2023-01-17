@@ -11,6 +11,7 @@
 
 (tests
  (names
+  util
   bench_mpmc_queue
   counters
   test_batch_counting
@@ -20,6 +21,7 @@
   bench_slist)
  (libraries domainslib unix)
  (modules
+  util
   mpmc_queue
   bench_mpmc_queue
   counters

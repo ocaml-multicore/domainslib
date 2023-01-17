@@ -18,8 +18,6 @@ let set_size preset_arr additional_arr =
   let t = ISL.make ~size:!total_size () in
   Array.iter (fun elt -> ISL.insert t elt) preset_arr;
   Array.iter (fun elt -> ISL.insert t elt) additional_arr;
-  let size = ISL.size t in
-  Printf.printf "Set size = %d\n" size;
   ISL.size t
 
 let run num_domains preset_arr additional_arr set_size = 
@@ -55,7 +53,6 @@ let main () =
 let () =
   Arg.parse speclist (fun _ -> ()) usage_msg;
   total_size := !preset + !additional;
-  Printf.printf "\nRun %s on num_domains=%d, preset=%d, inserts=%d\n%!"
-    Sys.executable_name !num_domains !preset !additional;
+  Printf.printf "\n\nRunning BatchSlist inserts, preset=%d, inserts=%d\n%!" !preset !additional;
   main (); print_newline ()
 

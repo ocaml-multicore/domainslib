@@ -1,5 +1,10 @@
 module T = Domainslib.Task
 
+let num_domains = Domain.recommended_domain_count () - 1
+let run = try bool_of_string Sys.argv.(1) with _ -> false
+let batch_size = 127
+let preset_size = 1_000_000
+let additional = 1_00_000
 module type Comparable = sig
   type t
   val compare : t -> t -> int
@@ -326,6 +331,7 @@ end = struct
 
 end
 
+let stats = Hashtbl.create 100
 module MakeImpBatched (V : Comparable) : sig
   type t
 
@@ -345,7 +351,6 @@ end = struct
     running : bool Atomic.t;
     q : batch_op Q.t;
     container : batch_op array;
-    stats : (int, int) Hashtbl.t
   }
   and
     batch_op =
@@ -358,7 +363,6 @@ end = struct
      running = Atomic.make false;
      q = Q.make ();
      container = Array.make batch_size Null;
-     stats = Hashtbl.create 100;
     }
 
   let rec try_launch pool t =
@@ -371,6 +375,9 @@ end = struct
            | Some op -> t.container.(!i) <- op; incr i; true
            | None -> false
          do () done;
+         (match Hashtbl.find_opt stats !i with
+          | Some cnt -> Hashtbl.replace stats !i (cnt + 1)
+          | None -> Hashtbl.add stats !i 1);
          let batch = Array.init !i (fun i -> t.container.(i)) in
          (match Hashtbl.find_opt t.stats !i with
           | Some cnt -> Hashtbl.replace t.stats !i (cnt + 1)
@@ -480,24 +487,28 @@ let test_correctness () =
   assert(count_unique total_arr = IS.size t4);
   T.teardown_pool pool
 
-let test_impbatch_insert () =
+let run_stats () =
   let module ISL = MakeImpBatched (Int) in
-  let preset_size = 1_000_000 in
-  let additional = 1_00_000 in
   let total_size = preset_size + additional in
   let max_rdm_int = (Int.shift_left 1 30) - 1 in
-  let preset_arr =
-    Random.init 0;
+  let preset_arr = Random.init 0;
     Array.init preset_size (fun _ -> Random.int max_rdm_int) in
   let additional_arr =
     Array.init additional (fun _ -> Random.int max_rdm_int) in
-  let t = ISL.make ~size:total_size ~batch_size:total_size () in
-  let pool = T.setup_pool ~num_domains:7 () in
+  let t = ISL.make ~size:total_size ~batch_size () in
+  let pool = T.setup_pool ~num_domains () in
+  Array.iter (fun elt -> ISL.seq_ins t elt) preset_arr;
+  let chunk_size = 
+    Util.chunk_calculator ~batch_size ~operations:additional () in
   T.run pool (fun () -> 
-      ISL.batch_ins t pool preset_arr;
-      T.parallel_for pool ~start:0 ~finish:(additional-1) ~body:
-        (fun i -> ISL.imp_batch_ins t pool additional_arr.(i)));
-  ISL.print_stats t;
+      T.parallel_for pool ~chunk_size ~start:0 ~finish:(additional-1) 
+        ~body:(fun i -> ISL.imp_batch_ins t pool additional_arr.(i)));
+  Util.print_implicit_batch_stats stats;
   T.teardown_pool pool
 
-(* let () = test_impbatch_insert () *)
+let () =   
+  if run then 
+    begin 
+      Printf.printf "\nRunning ImpBatchSlist Statistics, batch_size = %d, preset = %d, additional inserts = %d\n%!" batch_size preset_size additional;
+      run_stats ()
+    end;

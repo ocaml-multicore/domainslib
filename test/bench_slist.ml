@@ -1,13 +1,13 @@
 module T = Domainslib.Task
 module type Slist = module type of Slist.MakeImpBatched
+let preset_size = try int_of_string Sys.argv.(2) with _ -> 1_000_000
+let additional = 100_000
+let batch_size = 127
 
 module Bench (SLF : Slist) = struct
   module SL = SLF(Int)
 
-  let preset_size = 10_000_000
-  let additional = 100_000
   let total_size = preset_size + additional
-  let batch_size = 4096
   let max_rdm_int = (Int.shift_left 1 30) - 1
   let preset_arr =
     Random.init 0;
@@ -47,8 +47,8 @@ module Bench (SLF : Slist) = struct
 
   let run_imp_batch () =
     let test_imp_batch t pool () =
-      (* let chunk_size = batch_size / additional in *)
-      T.parallel_for pool (*~chunk_size*) ~start:0 ~finish:(additional-1) ~body:(fun i ->
+      let chunk_size = Util.chunk_calculator ~batch_size ~operations:additional () in
+      T.parallel_for pool ~chunk_size ~start:0 ~finish:(additional-1) ~body:(fun i ->
           SL.imp_batch_ins t pool (additional_arr.(i)))
     in
     run test_imp_batch
@@ -57,12 +57,14 @@ end
 module Bench_batched_slist =  Bench (Slist.MakeImpBatched)
 
 let () =
+  Printf.printf "\n\nRunning ImpBatch Slist Benchmarks, batch_size = %d, preset = %d, additional inserts = %d\n%!" batch_size preset_size additional;
   Format.printf "@." ;
   Format.printf "   num_domains: " ;
   for i = 1 to 8 do
     Format.printf " %5i   " i
   done ;
   Format.printf "@." ;
+  (* Why is there such a big difference when adding this? *)
   (* Format.printf "   Batch_ins: " ;
      Bench_batched_slist.run_batch (); *)
   Format.printf "     Seq_ins: " ;
