@@ -341,7 +341,6 @@ module MakeImpBatched (V : Comparable) : sig
   val seq_ins : t -> V.t -> unit
   val batch_ins : t -> T.pool -> V.t array -> unit
   val imp_batch_ins : t -> T.pool -> V.t -> unit
-  val print_stats : t -> unit
 end = struct
   module SL = Make(V)
   module Q = Mpmc_queue
@@ -379,9 +378,9 @@ end = struct
           | Some cnt -> Hashtbl.replace stats !i (cnt + 1)
           | None -> Hashtbl.add stats !i 1);
          let batch = Array.init !i (fun i -> t.container.(i)) in
-         (match Hashtbl.find_opt t.stats !i with
-          | Some cnt -> Hashtbl.replace t.stats !i (cnt + 1)
-          | None -> Hashtbl.add t.stats !i 1);
+         (match Hashtbl.find_opt stats !i with
+          | Some cnt -> Hashtbl.replace stats !i (cnt + 1)
+          | None -> Hashtbl.add stats !i 1);
          let data = Array.mapi (fun _ op ->
              match op with
              | Ins (_, elt, set) -> set (); elt
@@ -402,16 +401,6 @@ end = struct
     T.await pool pr
   let search t = SL.search t.slist
   let size t = SL.size t.slist
-
-  let print_stats t = 
-    let stat_len = Hashtbl.length t.stats in
-    let stats_array = Array.make stat_len 0 in
-    let i = ref 0 in
-    Hashtbl.iter (fun x _ -> stats_array.(!i) <- x; incr i) t.stats;
-    Array.sort (Int.compare) stats_array;
-    Array.iter (fun x ->
-        let value = Hashtbl.find t.stats x in
-        Printf.printf "%d -> %d\n" x value) stats_array;
 end
 
 let test_correctness () =
