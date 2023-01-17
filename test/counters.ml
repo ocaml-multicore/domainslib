@@ -2,9 +2,9 @@ module T = Domainslib.Task
 
 let run = try bool_of_string Sys.argv.(1) with _ -> false
 let batch_size = 4096
-let operations = 10_000_000
+let operations = try int_of_string Sys.argv.(2) with _ -> 10_000_000
 (* We switch this on to prevent the overhead of batching from dominating our performance gain *)
-let delay_on = try bool_of_string Sys.argv.(2) with _ -> false
+let delay_on = try bool_of_string Sys.argv.(3) with _ -> false
 let delay () = if delay_on then Unix.sleepf 0.000001
 
 module CounterBase = struct

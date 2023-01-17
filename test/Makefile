@@ -5,8 +5,8 @@ bench_counter:
 
 # Delay of 1 ms to exaggerate parallelism
 bench_counter_significant:
-	dune exec -- ./test_batch_counting.exe false true
-	dune exec -- ./bench_counters.exe false true
+	dune exec -- ./test_batch_counting.exe false 0 true 10000
+	dune exec -- ./bench_counters.exe false 0 true 10000
 
 counter_stat:
 	dune exec -- ./counters.exe true

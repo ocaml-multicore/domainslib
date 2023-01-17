@@ -82,40 +82,43 @@ BatchedCounter:   5268.99  2673.35  1844.65  1345.40  1096.41   929.03   830.48 
 
 Implicit Batch size statistics (batch limit 4096)
 ```
-batch_size -> bop performed
-1          -> 3
-4          -> 1
-5          -> 2
-7          -> 1
-12         -> 2
-20         -> 1
-29         -> 1
-65         -> 1
-101        -> 1
-642        -> 1
-1420       -> 1
-2874       -> 1
-3047       -> 1
-3439       -> 1
-3508       -> 1
-3517       -> 2
-3518       -> 3
-3519       -> 74
-3520       -> 34
-3521       -> 1
-3523       -> 2
-3530       -> 1
-3767       -> 1
-4267       -> 1
-4559       -> 1
-4593       -> 1
-4663       -> 1
-4667       -> 2
-4668       -> 1
-4669       -> 4
-4670       -> 11
-4671       -> 61
-4672       -> 39
+Running ImpBatchCounter Statistics, batch_size = 4096, ops = 10000000
+
+1 -> 3
+2 -> 4
+3 -> 1
+4 -> 1
+13 -> 2
+28 -> 1
+42 -> 1
+57 -> 1
+83 -> 1
+169 -> 1
+260 -> 1
+573 -> 1
+773 -> 1
+1064 -> 1
+1090 -> 1
+1156 -> 1
+1290 -> 1
+1787 -> 1
+2047 -> 1
+2810 -> 1
+3070 -> 1
+3071 -> 3
+3072 -> 1
+3633 -> 1
+3943 -> 1
+3958 -> 1
+4065 -> 1
+4090 -> 1
+4091 -> 1
+4092 -> 7
+4093 -> 41
+4094 -> 120
+4095 -> 1201
+4096 -> 1060
+
 ```
 ## Batched Skip List
 Skip-list sequential (No concurrency control) inserts vs batched inserts
@@ -157,16 +160,19 @@ Batch_ins:       459      730      845      886      896      909      914      
 ```
 Implicit Batch size statistics (batch limit 127)
 ```
-batch_size -> bop performed
-3          -> 2
-18         -> 1
-30         -> 5
-31         -> 774
-41         -> 1
-50         -> 1
-82         -> 1
-94         -> 4
-95         -> 776
+Running ImpBatchSlist Statistics, batch_size = 127, preset = 1000000, additional inserts = 100000
+
+1 -> 1564
+2 -> 12
+5 -> 4
+6 -> 2
+7 -> 6
+9 -> 12
+10 -> 4
+32 -> 4
+101 -> 2
+126 -> 260
+127 -> 1300
 ```
 ## Notes
 There is an interesting trade-off between the number of parallel operations running and the cost of parallelising tasks. It seems like creating huge batches, tests with batches as big as 15,000 does not beat tests with batches of size 60. This trade-off seems to be measured in the chunk_size calculation of the parallel-for algorithm. However, it does not always seem to be the best choice especially because it is dependent on how fast the batched operations run vs the sequential operations. I also suspect that if we can avoid the sequential bottle neck when we pass around the operation array, we may be able to attain more consistent behaviour

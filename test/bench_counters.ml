@@ -6,7 +6,7 @@ let run_impbatch = true
 let run_impbatchf = false
 let run_impbatchff = false
 let batch_size =  4096
-let operations = 1_000_000
+let operations = try int_of_string Sys.argv.(4) with _ -> 1_000_000
 let add_domains = Domain.recommended_domain_count () - 1
 
 module Bench (C : Counters.S) = struct
