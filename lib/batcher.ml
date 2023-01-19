@@ -1,102 +1,34 @@
-module type DS = sig
+module type BatchedDS = sig
   type t
   type 'a batch_op
-  type wrapped_batch_op = Batched_op : 'a batch_op * ('a -> unit) -> wrapped_batch_op
-
-  val create : Task.pool -> unit -> t
-  val bop : t -> wrapped_batch_op array -> int -> unit
-end
-
-module type TSContainer = sig
-  type 'a t
-  val create : ?batch_limit:int -> unit -> 'a t
-  val add : 'a t -> 'a -> unit
-  val get : 'a t -> 'a array * int
-  val size : 'a t -> int
-end 
-
-module QCon : TSContainer = struct
-  type 'a t = {
-    chan : 'a Chan.t;
-    size : int Atomic.t;
-    batch_limit : int
-  }
-  let create ?(batch_limit=max_int) () = 
-    {
-      chan = Chan.make_unbounded ();
-      size = Atomic.make 0;
-      batch_limit;
-    }
-  let add t elt =
-    let _ = Atomic.fetch_and_add t.size 1 in
-    Chan.send t.chan elt
-  let get t = 
-    let batch_size = Atomic.exchange t.size 0 in
-    let limit = min batch_size t.batch_limit in
-    let topup = max (batch_size - limit) 0 in
-    let _ = Atomic.fetch_and_add t.size topup in
-    Array.init limit (fun _ -> Chan.recv t.chan), batch_size
-  let size t = Atomic.get t.size 
-end
-
-(* type container = ELT.t option array 
-   type t = {
-   switching : bool Atomic.t;
-   primary : container Atomic.t;
-   mutable secondary : container;
-   size : int Atomic.t
-   }
-
-   let create ~batch_size () = {
-   switching = Atomic.make false;
-   primary = Atomic.make @@ Array.make batch_size None;
-   secondary =  Array.make batch_size None;
-   size = Atomic.make 0
-   }
-
-   let add (t : t) (elt : ELT.t) = 
-   (* Make sure switching process is not happening *)
-   while Atomic.get t.switching do () done;
-   let slot = Atomic.fetch_and_add t.size 1 in
-   t.container.(slot) <- Some elt
-
-   let get t = 
-   let size = Atomic.get t.size in
-   let batch = Array.make t.size None in
-   Array.blit t.container 0 batch 0 t.size;
-   batch
-
-   let size t = failwith "" *)
-
-module Make (DS : DS) : sig
-  type t
-  type 'a batch_op = 'a DS.batch_op
+  type wrapped_batch_op = 
+      Batched_op : 'a batch_op * ('a -> unit) -> wrapped_batch_op
 
   val create : Task.pool -> t
-  val batchify : t -> 'a batch_op -> 'a 
-end = struct
-
-  module Container = QCon
-
+  val bop : t -> wrapped_batch_op array -> int -> unit
+end
+module Make (DS : BatchedDS) = struct
   type 'a batch_op = 'a DS.batch_op
   type t = {
     pool : Task.pool;
     ds : DS.t;
     running : bool Atomic.t;
-    container : DS.wrapped_batch_op QCon.t
+    container : DS.wrapped_batch_op Ts_container.t
   }
+
+  (* Can we make this take variable arguments depending on the DS.create? *)
   let create pool = 
     { pool;
-      ds = DS.create pool ();
+      ds = DS.create pool;
       running = Atomic.make false;
-      container = Container.create () }
+      container = Ts_container.create () }
 
   let rec try_launch t =
-    if Container.size t.container > 0 
+    if Ts_container.size t.container > 0 
     && Atomic.compare_and_set t.running false true 
     then
       begin
-        let batch, size = Container.get t.container in
+        let batch, size = Ts_container.get t.container in
         DS.bop t.ds batch size;
         Atomic.set t.running false;
         try_launch t
@@ -105,7 +37,7 @@ end = struct
   let batchify t op =
     let pr, set = Task.promise () in
     let op_set = DS.Batched_op (op, set) in
-    Container.add t.container op_set;
+    Ts_container.add t.container op_set;
     try_launch t;
     Task.await t.pool pr
 

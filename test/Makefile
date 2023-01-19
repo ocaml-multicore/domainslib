@@ -25,7 +25,8 @@ slist_stat:
 	dune exec -- ./slist.exe true
 
 test :
-	dune exec -- ./playground.exe
+	dune exec -- ./imp_bcounter.exe
+	dune exec -- ./imp_bslist.exe
 
 # make bench_counter
 # make bench_counter_significant

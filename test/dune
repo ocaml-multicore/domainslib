@@ -4,10 +4,10 @@
  (modules test_chan)
  (modes native))
 
-(test
- (name playground)
+(tests
+ (names imp_bcounter)
  (libraries domainslib unix)
- (modules playground))
+ (modules imp_bcounter))
 
 (tests
  (names
@@ -18,7 +18,8 @@
   bench_counters
   slist
   test_batch_inserts
-  bench_slist)
+  bench_slist
+  imp_bslist)
  (libraries domainslib unix)
  (modules
   util
@@ -29,7 +30,8 @@
   bench_counters
   slist
   test_batch_inserts
-  bench_slist)
+  bench_slist
+  imp_bslist)
  (modes native))
 
 (test
