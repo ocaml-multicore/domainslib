@@ -1,9 +1,10 @@
 module type DS = sig
   type t
-  type batch_op
+  type 'a batch_op
+  type wrapped_batch_op = Batched_op : 'a batch_op * ('a -> unit) -> wrapped_batch_op
 
   val create : Task.pool -> unit -> t
-  val bop : t -> batch_op array -> int -> unit
+  val bop : t -> wrapped_batch_op array -> int -> unit
 end
 
 module type TSContainer = sig
@@ -69,20 +70,20 @@ end
 
 module Make (DS : DS) : sig
   type t
-  type batch_op = DS.batch_op
+  type 'a batch_op = 'a DS.batch_op
 
   val create : Task.pool -> t
-  val batchify : t -> batch_op -> 'a Task.promise -> 'a 
+  val batchify : t -> 'a batch_op -> 'a 
 end = struct
 
   module Container = QCon
 
-  type batch_op = DS.batch_op
+  type 'a batch_op = 'a DS.batch_op
   type t = {
     pool : Task.pool;
     ds : DS.t;
     running : bool Atomic.t;
-    container : batch_op QCon.t
+    container : DS.wrapped_batch_op QCon.t
   }
   let create pool = 
     { pool;
@@ -101,7 +102,9 @@ end = struct
         try_launch t
       end
 
-  let batchify t op_set pr =
+  let batchify t op =
+    let pr, set = Task.promise () in
+    let op_set = DS.Batched_op (op, set) in
     Container.add t.container op_set;
     try_launch t;
     Task.await t.pool pr
