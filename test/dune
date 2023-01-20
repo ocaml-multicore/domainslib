@@ -9,6 +9,12 @@
  (libraries domainslib unix)
  (modules imp_bcounter))
 
+(executable
+ (name con_slist)
+ (libraries batteries domainslib)
+ (modules con_slist)
+ (modes native))
+
 (tests
  (names
   util
@@ -20,7 +26,7 @@
   test_batch_inserts
   bench_slist
   imp_bslist)
- (libraries domainslib unix)
+ (libraries domainslib unix batteries)
  (modules
   util
   mpmc_queue
