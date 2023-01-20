@@ -205,11 +205,37 @@ end
 
 module ISL = Make(struct include Int let hash t = t end)
 module T = Domainslib.Task
+let max_rdm_int = (Stdlib.Int.shift_left 1 30) - 1
+let preset = 1_000_000
+let additional = 100_000
+let preset_arr = Array.init preset (fun _ -> Random.int max_rdm_int)
+let additional_arr = Array.init additional (fun _ -> Random.int max_rdm_int)
 
-
-let () = 
-  let pool = T.setup_pool ~num_domains:7 () in
-  T.run pool (fun () ->
-      T.parallel_for pool ~start:1 ~finish:1_000_000 ~body:(fun elt -> assert(ISL.add elt))
-    );
+let run num_domains = 
+  let pool = T.setup_pool ~num_domains () in
+  ISL.init ();
+  (* Insert preset elements *)
+  Array.iter (fun elt -> let _ = ISL.add elt in ()) preset_arr;
+  Gc.full_major ();
+  let t0 = Unix.gettimeofday () in
+  (* Perform batch parallel insertions *)
+  T.run pool (fun () -> 
+      T.parallel_for pool ~start:0 ~finish:(additional-1) ~body:(fun i -> let _ = ISL.add additional_arr.(i) in ()));
+  let t1 = Unix.gettimeofday () in
+  let op_ms = (Int.to_float additional) /. (1000.0 *. (t1 -. t0)) in
+  Format.printf "  %7s%!" (Printf.sprintf "%.0f" op_ms);
   T.teardown_pool pool
+
+let main () = 
+  Format.printf "@." ;
+  Format.printf "num_domains: " ;
+  for i = 1 to 8 do
+    Format.printf " %5i   " i
+  done ;
+  Format.printf "@." ;
+  Format.printf "  Con_ins: " ;
+  for num_domains = 0 to 7 do
+    run num_domains
+  done
+
+let () = main ()
