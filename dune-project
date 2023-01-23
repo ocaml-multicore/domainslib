@@ -15,7 +15,7 @@
  (depends
   (ocaml (>= "5.0"))
   (lockfree (>= "0.2.0"))
-  (mirage-clock-unix :with-test)
+  (mirage-clock-unix (and :with-test (>= "4.2.0")))
   (qcheck-core (and :with-test (>= "0.20")))
   (qcheck-multicoretests-util (and :with-test (>= "0.1")))
   (qcheck-stm (and :with-test (>= "0.1")))))
