@@ -31,6 +31,7 @@ let _ =
     let open Printexc in
     let bt = get_raw_backtrace () in
     let bt_slot_arr = Option.get (backtrace_slots bt) in
-    assert (Option.get (Slot.name bt_slot_arr.(1)) = "Backtrace.foo");
+    let name = Option.get (Slot.name bt_slot_arr.(1)) in
+    assert (name = "Backtrace.foo" || name = "Dune__exe__Backtrace.foo");
     let s = raw_backtrace_to_string bt in
     print_string s
