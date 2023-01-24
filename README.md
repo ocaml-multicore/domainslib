@@ -2,6 +2,11 @@
 
 This fork introduces support for a technique called "batching" which aims to increase data structure throughput of programs. In programs that run with "batching" support, data structure operations can be processed as a logical "batch" instead of atomic operations which reduces synchronization overhead and opens up more opportunities for optimisation. The goal of this work is to provide the scheduling infrastructure for the community to innovate and build new data structures for OCaml that stand to benefit from batching.
 
+The main contributions of our work include:
+1. A portable Batcher which makes turning explicitly batched data structures to their implcitly batched versions cheap.
+2. A Batcher that allows multiple batched data structures in the same program
+3. Investigation of the performance characteristics of implicitly batched data structures
+
 To read more about Batching, this paper introduces the idea https://www.cse.wustl.edu/~kunal/resources/Papers/batcher.pdf
 
 # Preliminary work and test results
@@ -144,19 +149,20 @@ Inserts: 100,000 elements
 
         num_domains:      2        3        4        5        6        7        8
         batch limit:     ------------------------ 127 operations ------------------------
-        Batched_ins:     156      240      260      409      432      423      522  ops/ms
             Seq_ins:     137      142      153      153      149      153      149  ops/ms
+        Batched_ins:     156      240      260      409      432      423      522  ops/ms
 
 ```
 BOP performance
 ```
-Performance of parallel insert 1 million preset and 100_000 inserts (batch limit 127)
+(batch limit 127)
+Performance of parallel insert 1 million preset and 100_000 inserts
 num_domains:      1        2        3        4        5        6        7        8
-Batch_ins:       236      279      294      303      301      304      309      309
+Batch_ins:       236      279      294      303      301      304      309      309  ops/ms
 
 Performance of parallel insert (1 million preset, 1 million inserts)
 num_domains:      1        2        3        4        5        6        7        8
-Batch_ins:       459      730      845      886      896      909      914      924
+Batch_ins:       459      730      845      886      896      909      914      924  ops/ms
 ```
 Implicit Batch size statistics (batch limit 127)
 ```
@@ -174,6 +180,11 @@ Running ImpBatchSlist Statistics, batch_size = 127, preset = 1000000, additional
 126 -> 260
 127 -> 1300
 ```
+## Design
+In the original design proposed by the authors, support for implicit batching had to be integrated into the runtime scheduler. In OCaml however, schedulers are written as modular library components that wrap programs. This is convenient since it makes the scheduler portable and now we don't need to dive into the internals of the runtime to change them. Furthermore, our design cleanly partitions the batching logic from the scheduler by only using `promise` and `await` API's exposed by the scheduler. This organization makes the Batcher itself modular and also interestingly solves the problem of not being able to have multiple batched data structures in the same program.
+
+We implement a functor that encapsulates implicit batching support. Using this functor which takes an explicitly batched data structure as input, it generates a implicitly batched version of that data structure.
+![batcher design](./BatcherComparison.png)
 ## Notes
 There is an interesting trade-off between the number of parallel operations running and the cost of parallelising tasks. It seems like creating huge batches, tests with batches as big as 15,000 does not beat tests with batches of size 60. This trade-off seems to be measured in the chunk_size calculation of the parallel-for algorithm. However, it does not always seem to be the best choice especially because it is dependent on how fast the batched operations run vs the sequential operations. I also suspect that if we can avoid the sequential bottle neck when we pass around the operation array, we may be able to attain more consistent behaviour
 

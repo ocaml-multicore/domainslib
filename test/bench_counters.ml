@@ -21,6 +21,7 @@ module Bench (C : Counters.S) = struct
         );
       assert (C.unsafe_get t = operations);
       let t1 = Unix.gettimeofday () in
+      let op_ms = (Int.to_float operations) /. (1000.0 *. (t1 -. t0)) in
       T.teardown_pool pool;
       Format.printf "  %7s%!"
         (Printf.sprintf "%.2f" (1000.0 *. (t1 -. t0)))

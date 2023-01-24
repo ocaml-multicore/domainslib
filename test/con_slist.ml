@@ -206,7 +206,7 @@ end
 module ISL = Make(struct include Int let hash t = t end)
 module T = Domainslib.Task
 let max_rdm_int = (Stdlib.Int.shift_left 1 30) - 1
-let preset = 1_000_000
+let preset = 10_000_000
 let additional = 100_000
 let preset_arr = Array.init preset (fun _ -> Random.int max_rdm_int)
 let additional_arr = Array.init additional (fun _ -> Random.int max_rdm_int)
