@@ -181,6 +181,18 @@ module Make (V : Compare) = struct
     if !result = None then failwith "[add] This is unreachable" else 
       Option.get !result
 
+  (* let batch_insert pool batch =
+     let open Node in
+     let tmp_head = mk_sentinel min_int in
+     let tmp_tail = mk_sentinel max_int in
+     Array.iteri (fun i _ -> !^tmp_head.next.(i) <- tmp_tail) !^tmp_head.next;
+
+     Array.sort V.compare batch;
+     let preds = Array.make (maxlevel+1) Node.Null in
+     let succs = Array.make (maxlevel+1) Node.Null in
+
+     failwith "" *)
+
   let print () = 
     let open Node in
     let rec walk height = function
@@ -206,7 +218,7 @@ end
 module ISL = Make(struct include Int let hash t = t end)
 module T = Domainslib.Task
 let max_rdm_int = (Stdlib.Int.shift_left 1 30) - 1
-let preset = 10_000_000
+let preset = 1_000_000
 let additional = 100_000
 let preset_arr = Array.init preset (fun _ -> Random.int max_rdm_int)
 let additional_arr = Array.init additional (fun _ -> Random.int max_rdm_int)

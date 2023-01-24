@@ -281,7 +281,7 @@ end = struct
       incr j;
       !j
 
-  let[@warning "-32"] par_insert t (pool : T.pool) (elems : V.t array) =
+  let par_insert t (pool : T.pool) (elems : V.t array) =
     (* Sort in acscending order *)
     Array.sort V.compare elems;
     let num_elems = remove_duplicates elems (Array.length elems) in

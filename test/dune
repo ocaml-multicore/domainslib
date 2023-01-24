@@ -10,9 +10,9 @@
  (modules imp_bcounter))
 
 (executable
- (name con_slist)
+ (name lazy_slist)
  (libraries batteries domainslib)
- (modules con_slist)
+ (modules lazy_slist)
  (modes native))
 
 (tests
