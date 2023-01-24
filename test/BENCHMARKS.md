@@ -4,15 +4,15 @@
 Running Par_Prefix_sum's benchmarks, ops = 1,000,000
 
         num_domains:      1        2        3        4        5        6        7        8   
-     Par_prefix_sum:     24.88    15.04    13.42    14.38     9.06     8.64     8.95     8.83
+     Par_prefix_sum:     39731    65215    76977    87451   114508   116266   124394   125567  ops/ms
 
 
 Running ImpBatch Counter Benchmarks, batch_size = 4096, ops = 1,000,000
                         (SEQ)
         num_domains:      1        2        3        4        5        6        7        8   
-        LockCounter:     15.65   107.22    73.58   100.38   128.83   129.89   148.33   157.49
-    LockfreeCounter:      4.96    46.55    66.61    78.05    81.69    84.62    88.76    92.32
-  ImpBatchedCounter:    121.10   339.49   265.51   230.90   241.78   245.38   220.76   231.54
+        LockCounter:     61550     9322    13038    10662     7208     7055     6268     5768  ops/ms
+    LockfreeCounter:    193161    26155    16051    15833    14187    12869    12549    12139  ops/ms
+  ImpBatchedCounter:      7922     2789     3704     4200     4371     4107     4279     4181  ops/ms
 ```
 - The control examples, LockCounter and LockfreeCounter show performance degradation as number of worker domains increase.
 - The operations are so cheap that the overhead of batching dominates any observable speedup, Batched operation, Par_prefix_sum have not much speedup and there is also some cost of synchronization between work stealing domains.
@@ -21,14 +21,13 @@ Running ImpBatch Counter Benchmarks, batch_size = 4096, ops = 1,000,000
 Running Par_Prefix_sum's benchmarks, ops = 10,000
 
         num_domains:      1        2        3        4        5        6        7        8   
-     Par_prefix_sum:    526.98   263.48   180.93   131.74   107.04    90.43    81.67    65.99
+     Par_prefix_sum:      18       38       55       76       94      111      127      153  ops/ms
 
 
 Running ImpBatch Counter Benchmarks, batch_size = 4096, ops = 10,000
 
         num_domains:      1        2        3        4        5        6        7        8   
-  ImpBatchedCounter:    530.25   269.35   185.38   136.15   110.52    93.93    84.06    68.74
-
+  ImpBatchedCounter:      19       37       54       73       90      106      123      143  ops/ms
 ```
 - Significant speedup as number of cores increase with the exaggeration.
 - Implicit batching also demostrates that effect
@@ -88,7 +87,7 @@ Running ImpBatch Slist Benchmarks, batch_size = 127, preset = 1,000,000, additio
   ImpBatch_ins:     201      392      383      534      633      580      675      666
 ```
 - Batched insert shows little observable speedup when increasing number of cores 
-- However, against the sequential case, the batched operation is more efficient in general and also we can perform multiple searches into the list in parallel
+- However, against the sequential case, the batched operation is more efficient in general we can perform multiple searches into the list in parallel
 
 ## Significant run: 10 mil preset
 ```

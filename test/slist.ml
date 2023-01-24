@@ -21,7 +21,6 @@ module Make (V : Comparable) : sig
   val validate : t -> unit
   val print_slist : t -> unit
   val par_insert : t -> T.pool -> V.t array -> unit
-  val par_insert_mock : t -> T.pool -> V.t array -> unit
 end = struct
 
   type t = {
@@ -317,17 +316,45 @@ end = struct
       done;
     done
 
-  let par_insert_mock _t (pool : T.pool) (elems : V.t array) =
-    let num_per_elem = 500 in
-    let num_elems = Array.length elems in
-    let size = num_per_elem * num_elems in
+  let[@warning "-32"] _par_insert t (pool : T.pool) (elems : V.t array) =
+    (* Sort in acscending order *)
+    Array.sort V.compare elems;
+    let num_elems = remove_duplicates elems (Array.length elems) in
 
-    let g_touched = Array.init size (fun _ -> 0) in
+    let intermediary = {
+      batch_size = num_elems;
+      maxinsertlevel = t.level;
+      level_arr = Array.make num_elems 0;
+      new_node_arr = Array.make num_elems t.nil;
+      new_node_back_arr = Array.make num_elems t.nil;
+      prev_node_idx = Array.make ((t.maxlevel+1) * num_elems) (-1)
+    } in
 
+    (* Not thread safe *)
+    T.parallel_for pool ~start:0 ~finish:(num_elems-1)
+      ~body:(fun idx -> build_node t idx (elems.(idx)) intermediary);
+
+    (* Not thread safe *)
+    T.parallel_for pool ~start:0 ~finish:(num_elems-1)
+      ~body:(fun idx ->      relate_nodes t idx intermediary);
+
+    T.parallel_for pool ~start:0 ~finish:(num_elems-1)
+      ~body:(fun idx -> merge_list t idx intermediary);
+
+    for i = 0 to num_elems-1 do
+      for j = 0 to intermediary.level_arr.(i) do
+        if intermediary.prev_node_idx.(((!(intermediary.maxinsertlevel)+1)*i)+j) = -2
+        then begin
+          let back_node = (!>(intermediary.new_node_back_arr.(i))).(j) in
+          (!>back_node).(j) <- intermediary.new_node_arr.(i)
+        end
+      done;
+    done
+
+  let _par_insert t (pool : T.pool) (elems : V.t array) =
+    let size = Array.length elems in
     T.parallel_for pool ~start:0 ~finish:(size - 1) ~body:
-      (fun i -> g_touched.(i) <- -1);
-
-    Array.iter (fun elt -> assert(elt = -1)) g_touched
+      (fun i -> let _ = search t elems.(i) = search t elems.(i) in ())
 
 end
 

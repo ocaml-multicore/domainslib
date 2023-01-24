@@ -5,8 +5,8 @@ let run_lockfree = true
 let run_impbatch = true
 let run_impbatchf = false
 let run_impbatchff = false
-let batch_size =  4096
 let operations = try int_of_string Sys.argv.(4) with _ -> 1_000_000
+let batch_size =  4096
 let add_domains = Domain.recommended_domain_count () - 1
 
 module Bench (C : Counters.S) = struct
@@ -24,7 +24,7 @@ module Bench (C : Counters.S) = struct
       let op_ms = (Int.to_float operations) /. (1000.0 *. (t1 -. t0)) in
       T.teardown_pool pool;
       Format.printf "  %7s%!"
-        (Printf.sprintf "%.2f" (1000.0 *. (t1 -. t0)))
+        (Printf.sprintf "%.0f" op_ms)
     done ;
     Format.printf "@."
 end

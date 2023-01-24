@@ -19,12 +19,12 @@ Simulating standard parallel counters against batched counters
                      (SEQ)
      num_domains:      1        2        3        4        5        6        7        8   
      batch limit:      ----------------------- 1_000_000 operations ------------------------
-     LockCounter:    194.01   248.31   182.78   194.45   197.28   205.97   220.37   214.56  ms
- LockfreeCounter:    185.98   226.67   133.79   105.31    96.02   102.22    94.63    91.45  ms
+     LockCounter:     8286     7701     6772     6253     5545     5081     4644     4631  ops/ms
+ LockfreeCounter:     9077     8843    11695    13313    15124    14271    13176    12612  ops/ms
 
-  BatchedCounter:    368.80  1198.58   903.25   577.27   557.61   588.81   558.93   542.13  ms
- BatchedCounterF:    338.56  1204.10   855.68   718.11   664.72   621.39   570.63   555.96  ms
-BatchedCounterFF:    189.30   177.86   154.45   137.15   175.45   209.81   211.35   244.32  ms
+  BatchedCounter:     3892     1069     1369     1685     1606     1996     2048     2102  ops/ms
+ BatchedCounterF:     4381     1022     1389     1658     1844     1847     1917     2137  ops/ms
+BatchedCounterFF:    10005    12716    11570     7624     6518     6507     6227     6072  ops/ms
 ```
 The batch_limit is configured by adjusing the chunk_size of `parallel_for` which determines the number of tasks grouped together to run asynchronously. A chunk_size of 1 corresponds to 1_000_000 operations spawned.
 
@@ -41,23 +41,23 @@ Turns out, there is a non-obvious "best" batch_limit.
                       (SEQ)
      num_domains:       1        2        3        4        5        6        7        8 
      batch limit:       1        16       32       32       32       64       64       64
-     LockCounter:     14.15   153.51    72.31    91.60   130.02   136.91   149.42   151.71  ms
- LockfreeCounter:      3.62    45.17    60.92    62.88    67.11    71.20    69.21    68.71  ms
+     LockCounter:     62897     7645    14832    10017     7384     7056     6386     6501  ops/ms
+ LockfreeCounter:    243897    19709    15282    14266    12176    11709    11082    14413  ops/ms
 
-  BatchedCounter:    123.09   517.09   409.30   383.17   323.59   321.24   302.19   337.08  ms
- BatchedCounterF:    102.82   492.39   396.41   355.16   289.69   277.99   265.32   260.26  ms
-BatchedCounterFF:      3.65    35.73    14.61    19.94    19.44    21.80    24.64    24.21  ms
+  BatchedCounter:      7819     2010     2221     2576     3001     3147     3231     3202  ops/ms
+ BatchedCounterF:     10263     1908     2313     2625     3196     3469     3548     3624  ops/ms
+BatchedCounterFF:    247949    50976    67594    59559    43409    56082    41665    42976  ops/ms
 
 
                      (SEQ)
      num_domains:      1        2        3        4        5        6        7        8
      batch limit:      ------------------------ 4096 operations ------------------------
-     LockCounter:     16.56   136.70    74.34   109.33   129.83   140.08   134.13   152.98  ms
- LockfreeCounter:      5.36    45.93    67.13    72.48    80.48    85.65    90.23    90.95  ms
+     LockCounter:    63260     6981    14337    11244     7410     6979     6249     6127  ops/ms
+ LockfreeCounter:   217581    22950    16366    16826    14748    13497    15223    14229  ops/ms
 
-  BatchedCounter:    125.11   341.46   290.97   252.76   241.20   233.06   227.60   234.72  ms
- BatchedCounterF:    105.91   335.79   281.67   253.17   235.17   207.34   206.42   193.45  ms
-BatchedCounterFF:      5.17    21.03    24.60    34.94    48.75    53.42    51.87    33.81  ms
+  BatchedCounter:     7499     2729     3629     3913     3931     4051     4267     4297  ops/ms
+ BatchedCounterF:     9907     3013     3364     4312     4349     4924     5278     5001  ops/ms
+BatchedCounterFF:   207989    28541    35540    24778    31145    21180    17896    37833  ops/ms
 ```
 My testing shows that a batch limit of 4096 operations per batch yields the best throughput for this batched counter. However, this "optimal" batch limit is highly dependent on performance of the batched operations as well as the workload of the core program.
 
@@ -72,17 +72,17 @@ The large difference in (SEQ) performance between the two sections are due to th
 Like the earlier section, Batched counters from 2 -> 8 domains demonstrate mostly steady speedup and then some plateuing towards the end (Some slowdown is also observed). Batched counters are a unique case because the cost of increment or decrement operations are so cheap that the benefits of batching are hard to see. The below experiments are to show how `parallel_prefix_sums` which is the underlying batch operation without implicit batching shows marginal speedup after 5 domains. We also show how inserting delays to exaggerate the performance gain of batching reveals consistent speedup.
 
 ```
-Performance of par_prefix_sums 10_000_000 ops (batch limit 4096)
+Performance of par_prefix_sums 10_000_000 ops
     num_domains:      1        2        3        4        5        6        7        8
-Par_prefix_sum:    375.19   144.77   124.04   104.43    90.87    83.14    84.19   109.89
+Par_prefix_sum:     25486    61093    98083   100149    83650   109588   102149    89216  ops/ms
 
 Par_prefix_sum With sleep delay to exaggerate parallelism speedup (100_000 ops with 1ms delay)
    num_domains:      1        2        3        4        5        6        7        8
-Par_prefix_sum:   5267.82  2634.60  1810.63  1316.54  1069.05   904.28   819.40   655.97
+Par_prefix_sum:      19       38       55       76       94      111      126      146  ops/ms
 
 Implicit batching with sleep delay (100_000 ops with 1ms delay)
    num_domains:      1        2        3        4        5        6        7        8
-BatchedCounter:   5268.99  2673.35  1844.65  1345.40  1096.41   929.03   830.48   694.64
+BatchedCounter:      19       37       54       74       90      107      119      136  ops/ms
 ```
 
 Implicit Batch size statistics (batch limit 4096)
@@ -134,13 +134,13 @@ Inserts: 100,000 elements
        num_domains:      2        3        4        5        6        7        8
        batch limit:      16       32       32       32       64       64       64
            Seq_ins:     299      284      299      301      298      284      297  ops/ms
-       Batched_ins:     346      432      465      563      585      644      627  ops/ms
+    ImpBatched_ins:     346      432      465      563      585      644      627  ops/ms
 
 
        num_domains:      2        3        4        5        6        7        8
        batch limit:     ------------------------ 127 operations ------------------------
            Seq_ins:     299      284      299      301      298      284      297  ops/ms
-       Batched_ins:     346      432      465      563      585      644      627  ops/ms
+    ImpBatched_ins:     366      513      594      623      660      681      677  ops/ms
 
 ```
 ```
@@ -150,7 +150,7 @@ Inserts: 100,000 elements
         num_domains:      2        3        4        5        6        7        8
         batch limit:     ------------------------ 127 operations ------------------------
             Seq_ins:     137      142      153      153      149      153      149  ops/ms
-        Batched_ins:     156      240      260      409      432      423      522  ops/ms
+     ImpBatched_ins:     156      240      260      409      432      423      522  ops/ms
 
 ```
 BOP performance
@@ -159,6 +159,10 @@ BOP performance
 Performance of parallel insert 1 million preset and 100_000 inserts
 num_domains:      1        2        3        4        5        6        7        8
 Batch_ins:       236      279      294      303      301      304      309      309  ops/ms
+
+Performance of parallel insert 10 million preset and 100_000 inserts
+num_domains:      1        2        3        4        5        6        7        8
+Batch_ins:       229      381      494      459      496      647      512      570  ops/ms
 
 Performance of parallel insert (1 million preset, 1 million inserts)
 num_domains:      1        2        3        4        5        6        7        8

@@ -51,7 +51,5 @@ let () =
            IntImpBatchedSlist.insert slist2 elt);
       assert (IntImpBatchedSlist.size slist1 = n);
       assert (IntImpBatchedSlist.size slist2 = n);
-      (* IntImpBatchedSlist.print slist1;
-         IntImpBatchedSlist.print slist2 *)
     );
   Task.teardown_pool pool

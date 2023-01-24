@@ -24,8 +24,9 @@ let () =
     T.run pool (fun () -> C.par_prefix_sums pool t op_arr);
     assert (C.unsafe_get t = n);
     let t1 = Unix.gettimeofday () in
+    let op_ms = (Int.to_float n) /. (1000.0 *. (t1 -. t0)) in
     Format.printf "  %7s%!"
-      (Printf.sprintf "%.2f" (1000.0 *. (t1 -. t0)));
+      (Printf.sprintf "%.0f" op_ms);
     T.teardown_pool pool;
   done;
   Printf.printf "\n\n\n"

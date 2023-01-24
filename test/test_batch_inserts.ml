@@ -30,7 +30,7 @@ let run num_domains preset_arr additional_arr set_size =
   (* Perform batch parallel insertions *)
   T.run pool (fun () -> ISL.par_insert t pool additional_arr);
   let t1 = Unix.gettimeofday () in
-  assert(ISL.size t = set_size);
+  assert(ISL.size t = set_size); 
   let op_ms = (Int.to_float !additional) /. (1000.0 *. (t1 -. t0)) in
   Format.printf "  %7s%!" (Printf.sprintf "%.0f" op_ms);
   T.teardown_pool pool
