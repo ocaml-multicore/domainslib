@@ -27,6 +27,7 @@ module BatchedSlist (V : Slist.Comparable) = struct
       ) op_arr;
     let inserts = Array.sub inserts 0 !i |> Array.map (Option.get) in
     VSL.par_insert t.slist t.pool inserts
+
 end
 
 module ImpBatchedSlist (V : Slist.Comparable) = struct
@@ -37,19 +38,50 @@ module ImpBatchedSlist (V : Slist.Comparable) = struct
   let print t = batchify t (Print)
 end
 
-let () =
-  let module IntImpBatchedSlist = ImpBatchedSlist(Int) in
-  let n = 1000 in
-  let num_domains = Domain.recommended_domain_count () in
+module IntImpBatchedSlist = ImpBatchedSlist(Int)
+
+
+let test_singular () = 
+  let n = 10000 in
+  let num_domains = Domain.recommended_domain_count () - 1 in
   let pool = Task.setup_pool ~num_domains () in
-  let slist1 = IntImpBatchedSlist.create pool in
-  let slist2 = IntImpBatchedSlist.create pool in
-  Task.run pool (fun () -> 
-      Task.parallel_for pool ~start:1 ~finish:n ~body:
-        (fun elt -> 
-           IntImpBatchedSlist.insert slist1 elt; 
-           IntImpBatchedSlist.insert slist2 elt);
-      assert (IntImpBatchedSlist.size slist1 = n);
-      assert (IntImpBatchedSlist.size slist2 = n);
+  Task.run pool (fun () ->
+      for _ = 1 to 10 do
+        let slist = IntImpBatchedSlist.create pool in
+        Task.parallel_for pool ~start:1 ~finish:n ~body:
+          (fun elt -> IntImpBatchedSlist.insert slist elt);
+        assert (IntImpBatchedSlist.size slist = n)
+      done
     );
   Task.teardown_pool pool
+
+let test_multiple () =
+  let n = 10000 in
+  let num_domains = Domain.recommended_domain_count () - 1 in
+  let pool = Task.setup_pool ~num_domains () in
+  let slist_arr = Array.init 10 (fun _ -> IntImpBatchedSlist.create pool) in
+  Task.run pool (fun () ->
+      Task.parallel_for pool ~start:1 ~finish:n ~body:
+        (fun elt ->
+           Array.iter (fun slist -> IntImpBatchedSlist.insert slist elt) slist_arr);
+      Array.iter (fun slist -> assert(IntImpBatchedSlist.size slist = n)) slist_arr;
+    );
+  Task.teardown_pool pool
+
+let test_batch_insert () =
+  let module IBSlist = Slist.Make(Int) in
+  let preset = 1_000_000 in
+  let n = 100_000 in
+  let max_rdm_int = (Int.shift_left 1 30) - 1 in
+  let preset_arr = Array.init preset (fun _ -> Random.int max_rdm_int) in
+  let additional_arr = Array.init preset (fun _ -> Random.int max_rdm_int) in
+  let num_domains = Domain.recommended_domain_count () - 1 in
+  let pool = Task.setup_pool ~num_domains () in
+  let t = IBSlist.make ~size:(preset + n) () in
+  Task.run pool (fun () ->
+      IBSlist.par_insert t pool preset_arr;
+      IBSlist.par_insert t pool additional_arr
+    );
+  Task.teardown_pool pool
+
+let () = test_singular ()

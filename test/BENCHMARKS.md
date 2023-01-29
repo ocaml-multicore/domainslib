@@ -119,3 +119,18 @@ Running ImpBatchSlist Statistics, batch_size = 127, preset = 1,000,000, addition
 126 -> 260
 127 -> 1300
 ```
+
+## Single DS vs Multiple DS
+```
+1 slist, 1000 * 1000 inserts
+Benchmark 1: dune exec -- ./imp_bslist.exe
+  Time (mean ± σ):      1.827 s ±  0.538 s    [User: 13.487 s, System: 0.093 s]
+  Range (min … max):    1.323 s …  2.448 s    10 runs
+ 
+1000 slist, 1000 inserts
+~/Y/C/d/test (promise|✚4) $ hyperfine "dune exec -- ./imp_bslist.exe"                                                                                                                                                              🐪[ 5.0.0 ]
+Benchmark 1: dune exec -- ./imp_bslist.exe
+  Time (mean ± σ):      8.944 s ±  0.158 s    [User: 65.281 s, System: 0.104 s]
+  Range (min … max):    8.747 s …  9.231 s    10 runs
+
+```

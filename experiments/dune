@@ -1,0 +1,4 @@
+(library
+ (name btree)
+ (preprocess
+  (pps ppx_inline_test ppx_deriving.make)))

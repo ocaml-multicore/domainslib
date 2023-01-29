@@ -25,7 +25,8 @@
   slist
   test_batch_inserts
   bench_slist
-  imp_bslist)
+  imp_bslist
+  test_batch_finding)
  (libraries domainslib unix batteries)
  (modules
   util
@@ -37,7 +38,8 @@
   slist
   test_batch_inserts
   bench_slist
-  imp_bslist)
+  imp_bslist
+  test_batch_finding)
  (modes native))
 
 (test
