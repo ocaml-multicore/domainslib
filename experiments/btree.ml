@@ -11,27 +11,28 @@ type 'a t = {
   t : int
 }
 
-let rec print_root {keys; leaf; c; _} =
-  let s_keys =
-    Array.fold_left (fun acc k -> acc ^ string_of_int k ^ "; ") "[" keys in
-  if leaf then
-    Printf.printf "%s" ("Leaf" ^ s_keys)
-  else Printf.printf "%s" ("Node" ^ s_keys);
-  print_newline ();
-  match c with
-  | Some c_arr -> Array.iter (fun c -> match c with | Some c -> print_root c | None -> Printf.printf "None ") c_arr
-  | None -> Printf.printf "None" 
-  
+let keys_fmt = Fmt.(array ~sep:semi int)
+let single_node_fmt ppf n = 
+  match n.leaf with
+  | true -> Fmt.pf ppf "Leaf(%a)" keys_fmt n.keys
+  | false -> Fmt.pf ppf "Node(%a)" keys_fmt n.keys
 
-let alloc_node ?(leaf = false) () = { 
+let print_node node = 
+  let none ppf () = Fmt.pf ppf "None" in
+  let node_op_fmt = Fmt.option ~none single_node_fmt in
+  let c_arr_fmt = Fmt.(array ~sep:semi node_op_fmt) in
+  let c_arr_op_fmt = Fmt.option c_arr_fmt in
+  Fmt.pr "%a\n%a" single_node_fmt node c_arr_op_fmt node.c
+
+let alloc_node ?(leaf = false) () = {
   n = 0;
-  keys = Array.make (2*d) 0;
+  keys = Array.make (2*d+1) 0;
   leaf;
   c = None
 }
 
 let ( !^ ) = function
-  | Some op_arr -> op_arr 
+  | Some op_arr -> op_arr
   | None -> failwith "invalid deref"
 
 let get_child node i = match node with
@@ -58,7 +59,7 @@ let create t =
 let split_child (x : 'a node) (i: int) (y: 'a node) =
   let z = alloc_node ~leaf:y.leaf () in
   z.n <- d-1;
-  (* Copy keys from left child to right *)
+  (* Fill right child *)
   for j = 1 to d-1 do
     z.keys.(j) <- y.keys.(j+d)
   done;
@@ -94,6 +95,7 @@ let rec insert_non_full x k =
           decr i
         done;
         incr i;
+        print_node x;
         let x_c_i = !^(x.c).(!i) |> Option.get in
         if x_c_i.n = 2 * d - 1
         then (split_child x !i x_c_i;
@@ -108,7 +110,9 @@ let insert t k =
   then (
     let s = alloc_node ~leaf:false () in
     t.root <- s;
-    s.c <- Some (Array.make (2*d+1) (Some r));
+    let c = Array.make (2*d+1) None in
+    c.(1) <- Some r;
+    s.c <- Some c;
     split_child s 1 r;
     insert_non_full s k;
   )
@@ -120,10 +124,14 @@ let%test "basic test" =
   insert t 2;
   insert t 1;
   insert t 4;
-  print_root t.root;
+  (* insert t 1; *)
+  print_node t.root;
   let res = search t.root 1 in
   Option.is_some res
-  
-let%test "search test" = print_endline "HELLo"; false
+
+(* Node(0; 2; 0; 0; 0)
+   Leaf(0; 1; 4; 3; 0); Leaf(0; 1; 4; 3; 0); Leaf(0; 1; 4; 3; 0); Leaf(0; 1; 4; 3;) ; Leaf(0; 1; 4; 3) *)
+
+let%test "search test" = false
 let%test "insert test" = false
 let%test "delete test" = false
