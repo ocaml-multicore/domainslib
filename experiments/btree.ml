@@ -12,7 +12,6 @@ type 'a t = {
   max_keys: int;
 }
 
-
 let rec size_node node =
   if node.leaf
   then Array.length node.values

@@ -5,13 +5,6 @@ let mat_size = try int_of_string Sys.argv.(2) with _ -> 1200
 let k = Domain.DLS.new_key Random.State.make_self_init
 
 module SquareMatrix = struct
-
-  let create f : float array =
-    let fa = Array.create_float (mat_size * mat_size) in
-    for i = 0 to mat_size * mat_size - 1 do
-      fa.(i) <- f (i / mat_size) (i mod mat_size)
-    done;
-    fa
   let parallel_create pool f : float array =
     let fa = Array.create_float (mat_size * mat_size) in
     T.parallel_for pool ~start:0 ~finish:( mat_size * mat_size - 1)
