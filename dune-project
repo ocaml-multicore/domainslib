@@ -1,2 +1,3 @@
-(lang dune 1.8)
+(lang dune 3.6)
 (name domainslib)
+(cram enable)
