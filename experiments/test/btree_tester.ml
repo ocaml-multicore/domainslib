@@ -19,6 +19,13 @@ let () =
   | ["print"; fname] ->
     let tree = read_btree fname in
     print_btree tree
+  | ["search"; fname; key] ->
+    let key = int_of_string key in
+    let tree = read_btree fname in
+    begin match Btree.search tree key with
+    | None -> print_endline "None"
+    | Some k -> print_endline ("\"" ^ k ^ "\"")
+    end
   | ["add"; fname; k; vl] ->
     let k = int_of_string k in
     let btree = read_btree fname in

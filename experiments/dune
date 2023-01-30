@@ -1,6 +1,6 @@
 (library
  (name btree)
- (libraries fmt iter)
+ (libraries iter)
  (inline_tests)
  (preprocess
   (pps ppx_inline_test)))

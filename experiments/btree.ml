@@ -67,7 +67,7 @@ let rec search_node x k =
 
 let search t k =
   match search_node t.root k with
-  | Some (node, i) -> Some node.children.(i)
+  | Some (node, i) -> Some node.values.(i)
   | None -> None
 
 let make_safe i vl =
