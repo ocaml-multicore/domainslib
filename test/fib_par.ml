@@ -19,3 +19,5 @@ let main =
   let res = T.run pool (fun _ -> fib_par pool n) in
   T.teardown_pool pool;
   Printf.printf "fib(%d) = %d\n" n res
+
+let () = main
