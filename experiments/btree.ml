@@ -58,6 +58,7 @@ let create t =
 let split_child (x : 'a node) (i: int) (y: 'a node) =
   let z = alloc_node ~leaf:y.leaf () in
   z.n <- d-1;
+  (* Copy keys from left child to right *)
   for j = 1 to d-1 do
     z.keys.(j) <- y.keys.(j+d)
   done;
@@ -71,8 +72,9 @@ let split_child (x : 'a node) (i: int) (y: 'a node) =
   y.n <- d-1;
   for j = x.n + 1 downto i + 1 do
     let x_c = !^(x.c) in
-    x_c.(j+1) <- Some z
+    x_c.(j+1) <-  x_c.(j)
   done;
+  !^(x.c).(i+1) <- Some z;
   for j = x.n downto i do
     x.keys.(j+1) <- x.keys.(j)
   done;
@@ -119,9 +121,8 @@ let%test "basic test" =
   insert t 1;
   insert t 4;
   print_root t.root;
-  (* let res = search t.root 1 in *)
-  (* Option.is_some res *)
-  false
+  let res = search t.root 1 in
+  Option.is_some res
   
 let%test "search test" = print_endline "HELLo"; false
 let%test "insert test" = false
