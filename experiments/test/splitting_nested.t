@@ -34,21 +34,21 @@
 
 
   $ ./btree_tester.exe print btree.bc
-  node(n=3,leaf=false)
+  node(n=3,leaf=false,no_elts=21)
    - values=[6: "key 6"; 10: "key 10"; 14: "key 14"]
    - child(k=6):
-      node(n=6,leaf=true)
+      node(n=6,leaf=true,no_elts=6)
        - values=[0: "key 0"; 1: "key 1"; 2: "key 2"; 3: "key 3"; 4: "key 4"; 5: "key 5"]
   
    - child(k=10):
-      node(n=3,leaf=true)
+      node(n=3,leaf=true,no_elts=3)
        - values=[7: "key 7"; 8: "key 8"; 9: "key 9"]
   
    - child(k=14):
-      node(n=3,leaf=true)
+      node(n=3,leaf=true,no_elts=3)
        - values=[11: "key 11"; 12: "key 12"; 13: "key 13"]
   
    - child(k=_):
-      node(n=6,leaf=true)
+      node(n=6,leaf=true,no_elts=6)
        - values=[15: "key 15"; 16: "key 16"; 17: "key 17"; 18: "key 18"; 19: "key 19"; 20: "key 20"]
   

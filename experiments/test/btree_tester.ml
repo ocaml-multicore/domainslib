@@ -26,6 +26,22 @@ let () =
     | None -> print_endline "None"
     | Some k -> print_endline ("\"" ^ k ^ "\"")
     end
+  | "par-search" :: fname :: keys :: (([] | [_])  as rest) ->
+    let keys = String.split_on_char ',' keys |> List.map int_of_string |> Array.of_list in
+    let tree = read_btree fname in
+    let num_domains = match rest with
+      | [] -> Domain.recommended_domain_count () 
+      | domains_count :: _ -> int_of_string domains_count
+    [@@alert "-unstable"] in
+    let pool = Domainslib.Task.setup_pool ~num_domains:num_domains () in
+    let results = Btree.par_search ~pool tree keys in
+    for i = 0 to Array.length results - 1 do
+      begin match results.(i) with
+      | None -> print_endline (string_of_int keys.(i) ^ " ==> None")
+      | Some res -> print_endline (string_of_int keys.(i) ^ " ==> " ^ res)
+      end
+    done
+
   | ["add"; fname; k; vl] ->
     let k = int_of_string k in
     let btree = read_btree fname in
