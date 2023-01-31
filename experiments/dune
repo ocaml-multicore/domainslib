@@ -3,4 +3,10 @@
  (libraries iter domainslib)
  (inline_tests)
  (preprocess
-  (pps ppx_inline_test)))
+  (pps ppx_inline_test))
+ (modules btree))
+
+(executable
+ (name impbatch_btree)
+ (libraries btree domainslib)
+ (modules impbatch_btree))
