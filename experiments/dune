@@ -2,11 +2,9 @@
  (name btree)
  (libraries iter domainslib)
  (inline_tests)
- (preprocess
-  (pps ppx_inline_test))
  (modules btree))
 
-(executable
+(library
  (name impbatch_btree)
  (libraries btree domainslib)
  (modules impbatch_btree))

@@ -1,4 +1,6 @@
-(executable (name btree_tester)
- (libraries btree))
+(executable
+ (name btree_tester)
+ (libraries btree impbatch_btree))
 
-(cram (deps ./btree_tester.exe))
+(cram
+ (deps ./btree_tester.exe))

@@ -25,3 +25,14 @@ module Make :
       val create : Task.pool -> t
       val batchify : t -> 'a batch_op -> 'a
     end
+
+module Make2 :
+  functor (DS : BatchedDS) ->
+    sig
+      include module type of DS
+      type tt
+      type 'a batch_op = 'a DS.batch_op
+      val get_ds : tt -> DS.t
+      val create : Task.pool -> tt
+      val batchify : tt -> 'a batch_op -> 'a
+    end
