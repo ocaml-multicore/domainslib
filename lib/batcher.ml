@@ -1,22 +1,18 @@
 module type BatchedDS = sig
-  type 'a t = {
-    pool : Task.pool;
-    ds : 'a
-  }
+  type t
   type 'a batch_op
   type wrapped_batch_op = 
       Batched_op : 'a batch_op * ('a -> unit) -> wrapped_batch_op
 
-  val create : Task.pool -> 'a t
-  val bop : 'a t -> wrapped_batch_op array -> int -> unit
-  val load : 'a t -> 'a -> unit
-  val unload : 'a t -> 'a
+  val create : unit -> t
+  val bop : t -> Task.pool -> wrapped_batch_op array -> int -> unit
 end
+
 module Make (DS : BatchedDS) = struct
   type 'a batch_op = 'a DS.batch_op
-  type 'a t = {
+  type t = {
     pool : Task.pool;
-    ds : 'a DS.t;
+    mutable ds : DS.t;
     running : bool Atomic.t;
     container : DS.wrapped_batch_op Ts_container.t
   }
@@ -24,7 +20,7 @@ module Make (DS : BatchedDS) = struct
   (* Can we make this take variable arguments depending on the DS.create? *)
   let create pool = 
     { pool;
-      ds = DS.create pool;
+      ds = DS.create ();
       running = Atomic.make false;
       container = Ts_container.create () }
 
@@ -34,7 +30,7 @@ module Make (DS : BatchedDS) = struct
     then
       begin
         let batch, size = Ts_container.get t.container in
-        DS.bop t.ds batch size;
+        DS.bop t.ds t.pool batch size;
         Atomic.set t.running false;
         try_launch t
       end
@@ -46,24 +42,36 @@ module Make (DS : BatchedDS) = struct
     try_launch t;
     Task.await t.pool pr
 
+  let unload t = t.ds
+  [@@@alert unsafe "For developer use"]
+  let load t ds =  t.ds <- ds
+  [@@@alert unsafe "For developer use"]
+
+end
+(* 
+module type PolyBatchedDS = sig
+  type 'a t
+  type 'a batch_op
+  type wrapped_batch_op = 
+      Batched_op : 'a batch_op * ('a -> unit) -> wrapped_batch_op
+
+  val create : unit -> 'a t
+  val bop : 'a t -> Task.pool -> wrapped_batch_op array -> int -> unit
 end
 
-
-module Make2 (DS : BatchedDS) = struct
+module MakePoly (DS : PolyBatchedDS) = struct
   type 'a batch_op = 'a DS.batch_op
   type 'a t = {
     pool : Task.pool;
-    ds : 'a DS.t;
+    mutable ds : 'a DS.t;
     running : bool Atomic.t;
     container : DS.wrapped_batch_op Ts_container.t
   }
-  let unload t = DS.unload t.ds
-  let load t = DS.load t.ds
 
   (* Can we make this take variable arguments depending on the DS.create? *)
   let create pool = 
     { pool;
-      ds = DS.create pool;
+      ds = DS.create ();
       running = Atomic.make false;
       container = Ts_container.create () }
 
@@ -73,7 +81,7 @@ module Make2 (DS : BatchedDS) = struct
     then
       begin
         let batch, size = Ts_container.get t.container in
-        DS.bop t.ds batch size;
+        DS.bop t.ds t.pool batch size;
         Atomic.set t.running false;
         try_launch t
       end
@@ -85,4 +93,10 @@ module Make2 (DS : BatchedDS) = struct
     try_launch t;
     Task.await t.pool pr
 
+  let unload t = t.ds
+  [@@@alert unsafe "For developer use"]
+  let load t ds =  t.ds <- ds
+  [@@@alert unsafe "For developer use"]
+
 end
+ *)

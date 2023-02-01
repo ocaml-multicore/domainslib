@@ -7,16 +7,6 @@ let read_btree fname : string Btree.t =
   In_channel.with_open_bin fname (fun ic -> (Marshal.from_channel ic : string Btree.t))
 
 module IBB = Impbatch_btree.ImpBatchedBtree
-(* module IBB = Impbatch_btree.ImpBatchedBtree
-   let dump_impbtree fname (ibtree: IBB.t) =
-   Out_channel.with_open_bin fname (fun oc -> Marshal.to_channel oc ibtree [])
-
-   let print_impbtree (ibtree : IBB.t) = 
-   let btree = IBB.unload ibtree in
-   IBB.print_tree btree
-
-   let read_impbtree fname : IBB.t =
-   In_channel.with_open_bin fname (fun ic -> (Marshal.from_channel ic : IBB.t)) *)
 
 let () =
   let args = List.init (Array.length Sys.argv - 1) (fun i -> Sys.argv.(i + 1)) in
@@ -71,9 +61,23 @@ let () =
     let pool = Domainslib.Task.setup_pool ~num_domains:num_domains () in
     let ibtree = IBB.create pool in
     let btree = IBB.unload ibtree in
+    print_btree btree;
     dump_btree fname btree;
     Domainslib.Task.teardown_pool pool
-  | ["print_impbtree"; fname] ->
-    let impbtree = read_impbtree fname in
-    print_impbtree impbtree;
+  | ["imp_insert"; fname; n] ->
+    let n = int_of_string n in
+    let num_domains = Domain.recommended_domain_count () - 1
+    [@@alert "-unstable"] in
+    let pool = Domainslib.Task.setup_pool ~num_domains:num_domains () in
+    let btree = read_btree fname in
+    let ibtree = IBB.create pool in
+    IBB.load ibtree btree;
+    for _ = 1 to n do
+      let key = Random.int 20 in
+      let value = "key " ^ (string_of_int key) in
+      IBB.insert ibtree key value
+    done;
+    print_btree btree;
+    dump_btree fname btree;
+    Domainslib.Task.teardown_pool pool
   | _ -> failwith "invalid arguments"
