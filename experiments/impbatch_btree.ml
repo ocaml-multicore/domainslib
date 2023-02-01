@@ -22,7 +22,7 @@ module BatchedBtree(V : V) = struct
   let batch_limit = 20
   let insert_chan = Chan.make_bounded batch_limit
   (* let search_chan = Chan.make_bounded batch_limit *)
-  let search_chan: (V.t option T.promise * V.t option -> unit) Chan.t = Chan.make_bounded batch_limit
+  let search_chan: ((V.t option T.promise) * (V.t option -> unit)) Chan.t = Chan.make_bounded batch_limit
   let insert_batch : (int * V.t) option array = Array.make batch_limit None
   let populate arr chan =
     let i = ref 0 in
@@ -54,7 +54,7 @@ module BatchedBtree(V : V) = struct
     while 
       let pr_op = Chan.recv_poll search_chan in
       match pr_op with
-      | Some (pr, Search_set set) -> set @@ Task.await pool pr; true
+      | Some (pr, set) -> set @@ Task.await pool pr; true
       | None -> false 
     do ()
     done
