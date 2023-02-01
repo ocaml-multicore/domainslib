@@ -21,7 +21,8 @@ module BatchedBtree(V : V) = struct
 
   let batch_limit = 20
   let insert_chan = Chan.make_bounded batch_limit
-  let search_chan = Chan.make_bounded batch_limit
+  (* let search_chan = Chan.make_bounded batch_limit *)
+  let search_chan: (V.t option T.promise * V.t option -> unit) Chan.t = Chan.make_bounded batch_limit
   let insert_batch : (int * V.t) option array = Array.make batch_limit None
   let populate arr chan =
     let i = ref 0 in
@@ -38,8 +39,8 @@ module BatchedBtree(V : V) = struct
     for i = 0 to n-1 do
       match bop_arr.(i) with
       | Batched_op (Search key, set) -> 
-        Chan.send search_chan ((Task.async pool (fun () ->
-            Btree.search t key), Search_set set));
+        let pr = Task.async pool (fun () -> Btree.search t key) in
+        Chan.send search_chan (pr, set);
       | Batched_op (Insert (key, value), set) -> 
         Chan.send insert_chan (key, value); set ()
     done;
