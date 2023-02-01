@@ -1,7 +1,6 @@
 (library
  (name btree)
  (libraries iter domainslib)
- (inline_tests)
  (modules btree))
 
 (library
