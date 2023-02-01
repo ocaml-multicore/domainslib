@@ -6,11 +6,9 @@ module type V = sig
 end
 module BatchedBtree = struct
 
-  include Btree
-
   type t = {
     pool : Task.pool;
-    ds : string Btree.t }
+    mutable ds : string Btree.t }
 
   type _ batch_op = 
     | Search : int -> string option batch_op
@@ -18,6 +16,9 @@ module BatchedBtree = struct
 
   type wrapped_batch_op = 
       Batched_op : 'a batch_op * ('a -> unit) -> wrapped_batch_op
+
+  let unload t = t.ds
+  let load t ds = t.ds <- ds
 
   let create pool = {
     pool;
@@ -27,7 +28,6 @@ module BatchedBtree = struct
   let search_list = ref []
   let print_tree t =
     print_endline (Btree.show (fun fmt vl -> Format.fprintf fmt "\"%s\"" vl) t.ds)
-  (* let insert_list = ref [] *)
 
   let bop : t -> wrapped_batch_op array -> int -> unit = fun t bop_arr n ->
     for i = 0 to n-1 do
@@ -58,3 +58,4 @@ module ImpBatchedBtree = struct
   let search t i = batchify t (Search i)
   let insert t k v = batchify t (Insert (k, v))
 end
+

@@ -7,15 +7,16 @@ let read_btree fname : string Btree.t =
   In_channel.with_open_bin fname (fun ic -> (Marshal.from_channel ic : string Btree.t))
 
 module IBB = Impbatch_btree.ImpBatchedBtree
-let dump_impbtree fname (ibtree: IBB.tt) =
-  Out_channel.with_open_bin fname (fun oc -> Marshal.to_channel oc ibtree [])
+(* module IBB = Impbatch_btree.ImpBatchedBtree
+   let dump_impbtree fname (ibtree: IBB.t) =
+   Out_channel.with_open_bin fname (fun oc -> Marshal.to_channel oc ibtree [])
 
-let print_impbtree (ibtree : IBB.tt) = 
-  let btree = IBB.get_ds ibtree in
-  IBB.print_tree btree
+   let print_impbtree (ibtree : IBB.t) = 
+   let btree = IBB.unload ibtree in
+   IBB.print_tree btree
 
-let read_impbtree fname : IBB.tt =
-  In_channel.with_open_bin fname (fun ic -> (Marshal.from_channel ic : IBB.tt))
+   let read_impbtree fname : IBB.t =
+   In_channel.with_open_bin fname (fun ic -> (Marshal.from_channel ic : IBB.t)) *)
 
 let () =
   let args = List.init (Array.length Sys.argv - 1) (fun i -> Sys.argv.(i + 1)) in
@@ -68,8 +69,9 @@ let () =
     let num_domains = Domain.recommended_domain_count () - 1
     [@@alert "-unstable"] in
     let pool = Domainslib.Task.setup_pool ~num_domains:num_domains () in
-    let btree = IBB.create pool in
-    dump_impbtree fname btree;
+    let ibtree = IBB.create pool in
+    let btree = IBB.unload ibtree in
+    dump_btree fname btree;
     Domainslib.Task.teardown_pool pool
   | ["print_impbtree"; fname] ->
     let impbtree = read_impbtree fname in

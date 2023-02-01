@@ -1,17 +1,22 @@
 module type BatchedDS = sig
-  type t
+  type 'a t = {
+    pool : Task.pool;
+    ds : 'a
+  }
   type 'a batch_op
   type wrapped_batch_op = 
       Batched_op : 'a batch_op * ('a -> unit) -> wrapped_batch_op
 
-  val create : Task.pool -> t
-  val bop : t -> wrapped_batch_op array -> int -> unit
+  val create : Task.pool -> 'a t
+  val bop : 'a t -> wrapped_batch_op array -> int -> unit
+  val load : 'a t -> 'a -> unit
+  val unload : 'a t -> 'a
 end
 module Make (DS : BatchedDS) = struct
   type 'a batch_op = 'a DS.batch_op
-  type t = {
+  type 'a t = {
     pool : Task.pool;
-    ds : DS.t;
+    ds : 'a DS.t;
     running : bool Atomic.t;
     container : DS.wrapped_batch_op Ts_container.t
   }
@@ -45,16 +50,16 @@ end
 
 
 module Make2 (DS : BatchedDS) = struct
-  include DS
   type 'a batch_op = 'a DS.batch_op
-  type tt = {
+  type 'a t = {
     pool : Task.pool;
-    ds : DS.t;
+    ds : 'a DS.t;
     running : bool Atomic.t;
     container : DS.wrapped_batch_op Ts_container.t
   }
+  let unload t = DS.unload t.ds
+  let load t = DS.load t.ds
 
-  let get_ds tt = tt.ds
   (* Can we make this take variable arguments depending on the DS.create? *)
   let create pool = 
     { pool;
