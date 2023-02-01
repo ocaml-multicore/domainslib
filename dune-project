@@ -2,6 +2,7 @@
 (name domainslib)
 (formatting disabled)
 (generate_opam_files true)
+(cram enable)
 
 (source (github ocaml-multicore/domainslib))
 (authors "KC Sivaramakrishnan <kc@kcsrk.info>")
