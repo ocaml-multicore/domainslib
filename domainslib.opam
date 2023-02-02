@@ -11,6 +11,8 @@ depends: [
   "dune" {>= "3.0"}
   "ocaml" {>= "5.0"}
   "lockfree" {>= "0.2.0"}
+  "iter"
+  "batteries"
   "mirage-clock-unix" {with-test & >= "4.2.0"}
   "qcheck-core" {with-test & >= "0.20"}
   "qcheck-multicoretests-util" {with-test & >= "0.1"}

@@ -16,6 +16,8 @@
  (depends
   (ocaml (>= "5.0"))
   (lockfree (>= "0.2.0"))
+  iter
+  batteries
   (mirage-clock-unix (and :with-test (>= "4.2.0")))
   (qcheck-core (and :with-test (>= "0.20")))
   (qcheck-multicoretests-util (and :with-test (>= "0.1")))
