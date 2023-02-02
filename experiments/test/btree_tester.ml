@@ -56,14 +56,14 @@ let () =
     print_btree btree
   | "par-insert" :: fname :: keys :: (([] | [_])  as rest) ->
     let keys = String.split_on_char ',' keys |> List.map int_of_string |> Array.of_list in
-    let keys_values = Array.map (fun k -> (k, "key " ^ string_of_int k)) keys in
+    let keys_vals = Array.map (fun k -> (k, "key " ^ string_of_int k)) keys in
     let tree = read_btree fname in
     let num_domains = match rest with
       | [] -> Domain.recommended_domain_count () 
       | domains_count :: _ -> int_of_string domains_count
     [@@alert "-unstable"] in
     let pool = Domainslib.Task.setup_pool ~num_domains:num_domains () in
-    let[@warning "-21"] () = Btree.par_insert ~pool tree keys_values in
+    let[@warning "-21"] () = Btree.par_insert ~pool tree keys_vals in
     dump_btree fname tree
   | ["init_impbatch"; fname] -> 
     let num_domains = Domain.recommended_domain_count () - 1
