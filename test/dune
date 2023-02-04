@@ -17,12 +17,9 @@
 
 (tests
  (names
-  util
   bench_mpmc_queue
-  counters
   test_batch_counting
   bench_counters
-  slist
   test_batch_inserts
   bench_slist
   imp_bslist)
@@ -190,3 +187,8 @@
  (libraries qcheck-stm.sequential qcheck-stm.domain domainslib)
  (action
   (run %{test} --verbose)))
+
+(env
+ (dev
+  (flags
+   (:standard -w -32))))

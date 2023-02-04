@@ -151,7 +151,7 @@ let merge i1 i2 =
     | (Some _, _), (None, _) -> Iter.append i1 acc
     | (None,_), (Some _, _) -> Iter.append i2 acc
   in
-  aux Iter.empty i1 i2 |> Iter.persistent |> Iter.rev |> Iter.to_array
+  aux Iter.empty i1 i2 |> Iter.rev |> Iter.to_array
 
 let par_rebuild ~pool (t: 'a t) (kv_arr : (int * 'a) array) =
   (* keys is a array of (key, index) where index is the position in the original search query *)

@@ -1,8 +1,6 @@
 (library
  (name btree)
  (libraries iter domainslib)
- (preprocess
-  (pps ppx_inline_test))
  (modules btree))
 
 (library

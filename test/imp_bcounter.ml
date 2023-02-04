@@ -1,9 +1,6 @@
 open Domainslib
 module BatchedCounter = struct
-  type t = {
-    counter : int Atomic.t;
-    pool : Task.pool
-  }
+  type t = int Atomic.t
 
   type 'a batch_op =
     | Incr : unit batch_op
@@ -11,26 +8,26 @@ module BatchedCounter = struct
     | Get : int batch_op
   type wrapped_batch_op = Batched_op : 'a batch_op * ('a -> unit) -> wrapped_batch_op
 
-  let create pool = {counter = Atomic.make 0; pool}
+  let create () = Atomic.make 0
 
-  let bop t (arr:wrapped_batch_op array) _num =
+  let bop t pool (arr:wrapped_batch_op array) _num =
     let len = Array.length arr in
-    let start = Atomic.get t.counter in
-    let add_n = Task.parallel_for_reduce t.pool ~start:0 ~finish:(len-1)
+    let start : int = Atomic.get t in
+    let add_n = Task.parallel_for_reduce pool ~start:0 ~finish:(len-1)
         ~body:(fun i -> 
             match arr.(i) with
             | Batched_op (Incr, set) ->  set (); 1
             | Batched_op (Decr, set) ->  set (); -1
             | Batched_op (Get, set) -> set start; 0) ( + ) 0 
     in
-    Atomic.set t.counter (start + add_n)
+    Atomic.set t (start + add_n)
 
 end
 
 module ImpBatchedCounter = struct 
   include Batcher.Make(BatchedCounter)
   let increment t = batchify t Incr
-  let decrement t = batchify t Decr
+  let [@warning "-32"]decrement t = batchify t Decr
   let get t = batchify t Get
 
 end
