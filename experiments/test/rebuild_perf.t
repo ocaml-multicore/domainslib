@@ -1,0 +1,1 @@
+  $ ./rebuild_perf.exe 500 3 8

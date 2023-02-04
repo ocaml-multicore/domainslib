@@ -68,7 +68,7 @@ let pp_range ppf (r : (int * int) array) =
   let pp_tuple ppf tup = Format.fprintf ppf "(%d, %d)" (fst tup) (snd tup) in
   Format.pp_print_list pp_tuple ppf (Array.to_list r)
 
-let[@warning "-27"] build ~max_keys pool (batch : (int * 'a) array) : 'a t = 
+let[@warning "-27"] build_aux ~max_keys pool (batch : (int * 'a) array) : 'a node = 
   let t = max_keys + 1  in
   let nil = { n = 0; 
               keys=[||];
@@ -114,11 +114,53 @@ let[@warning "-27"] build ~max_keys pool (batch : (int * 'a) array) : 'a t =
         ); node
     end
   in
-  {max_keys = t; root = aux 0 (Array.length batch) false}
+  aux 0 (Array.length batch) false
 
-let flatten : 'a t -> (int * 'a) array =
-  fun t -> [||]
+let build ~max_keys pool batch = 
+  {max_keys = max_keys + 1;  root = build_aux ~max_keys pool batch}
 
+let flatten t =
+  let open Iter in
+  let rec aux node =
+    if node.leaf then
+      let elems = Array.map2 (fun k v -> k, v) node.keys node.values in
+      of_array elems
+    else begin
+      let back = 
+        (node.n) --^ 1 |> 
+        fold (fun acc i -> 
+            let tl = aux (node.children.(i)) in
+            let kv = node.keys.(i-1), node.values.(i-1) in
+            let comb = cons kv tl in
+            append comb acc
+          ) empty in
+      append (aux (node.children.(0))) back
+    end
+  in
+  aux t.root
+
+let merge i1 i2 =
+  let hd_tl i = Iter.head i, Iter.drop 1 i in
+  let rec aux acc i1 i2 = 
+    match hd_tl i1, hd_tl i2 with
+    | (None,_), (None, _) -> acc
+    | (Some hd1, tl1), (Some hd2, tl2) -> 
+      if hd1 < hd2 
+      then aux (Iter.cons hd1 acc) tl1 (Iter.cons hd2 tl2)
+      else aux (Iter.cons hd2 acc) (Iter.cons hd2 tl1) tl2
+    | (Some _, _), (None, _) -> Iter.append i1 acc
+    | (None,_), (Some _, _) -> Iter.append i2 acc
+  in
+  aux Iter.empty i1 i2 |> Iter.persistent |> Iter.rev |> Iter.to_array
+
+let par_rebuild ~pool (t: 'a t) (kv_arr : (int * 'a) array) =
+  (* keys is a array of (key, index) where index is the position in the original search query *)
+  let max_keys = t.max_keys in
+  Array.sort (fun (k,_) (k',_) -> Int.compare k k') kv_arr;
+  let i1 = Iter.of_array kv_arr in
+  let i2 = flatten t in
+  let batch = merge i1 i2 in
+  build_aux ~max_keys pool batch
 
 let rec par_insert_node : Domainslib.Task.pool -> 'a node ->
   key_vals:((int * 'a) * int) array -> 
@@ -137,7 +179,7 @@ let rec par_insert_node : Domainslib.Task.pool -> 'a node ->
       let[@warning "-27"] _handle_equal_keys ki i =
         failwith "Handle equal keys"
         (* if i < node.n && fst keys.(ki) = node.keys.(i) then 
-           results.(snd keys.(ki)) <- Some node.values.(i) in *)
+             results.(snd keys.(ki)) <- Some node.values.(i) in *)
         (* partition children by index they belong to  *)
       in
       let children =
@@ -176,3 +218,10 @@ let[@warning "-27"] par_insert ~pool (t: 'a t) (kv_arr : (int * 'a) array) =
   (* allocate a buffer for the results *)
   Domainslib.Task.run pool
     (fun () -> par_insert_node pool t.root ~key_vals ~range:(0, Array.length key_vals) ~max_keys)
+
+let par_insert_rebuilder ~pool t kv_arr =
+  let batch_size = Array.length kv_arr in
+  if batch_size >= t.root.no_elements then
+    t.root <- par_rebuild ~pool t kv_arr
+  else
+    Array.iter (fun (k,v) -> insert t k v) kv_arr

@@ -104,4 +104,18 @@ let () =
     dump_btree fname btree;
     print_btree btree;
     Domainslib.Task.teardown_pool pool
+  | "rebuild":: fname :: keys :: (([] | [_])  as rest) ->
+    let btree = read_btree fname in
+    let keys = String.split_on_char ',' keys |> List.map int_of_string |> Array.of_list in
+    let keys_vals = Array.map (fun k -> (k, "key " ^ string_of_int k)) keys in
+    let num_domains = match rest with
+      | [] -> Domain.recommended_domain_count () 
+      | domains_count :: _ -> int_of_string domains_count
+    [@@alert "-unstable"] in
+    let pool = Domainslib.Task.setup_pool ~num_domains:num_domains () in
+    Domainslib.Task.run pool (fun () -> 
+        Batch_para_btree.par_insert_rebuilder ~pool btree keys_vals);
+    dump_btree fname btree;
+    print_btree btree;
+    Domainslib.Task.teardown_pool pool
   | _ -> failwith "invalid arguments"

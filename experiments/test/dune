@@ -3,10 +3,10 @@
  (libraries btree batch_para_btree ib_btree)
  (modules btree_tester))
 
-(executable
- (name build_perf)
+(executables
+ (names build_perf rebuild_perf)
  (libraries batch_para_btree domainslib unix)
- (modules build_perf perf_utils))
+ (modules build_perf rebuild_perf perf_utils))
 
 (test
  (name build_tests)
@@ -14,4 +14,4 @@
  (modules build_tests))
 
 (cram
- (deps ./btree_tester.exe ./build_perf.exe))
+ (deps ./btree_tester.exe ./build_perf.exe ./rebuild_perf.exe))
