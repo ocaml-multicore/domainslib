@@ -33,7 +33,6 @@ module BatchedBtree(V : V) = struct
     do ()
     done; !i
 
-
   let bop : V.t Btree.t -> T.pool -> wrapped_batch_op array -> int -> unit = 
     fun t pool bop_arr n ->
     for i = 0 to n-1 do
@@ -47,8 +46,8 @@ module BatchedBtree(V : V) = struct
     (* Inserts *)
     let n = populate insert_batch insert_chan in
     for i = 0 to n-1 do
-      let key, value = Option.get insert_batch.(i) in
-      Btree.insert t key value
+      let[@warning "-26"] key, value = Option.get insert_batch.(i) in
+      (* Btree.insert t key value *)()
     done;
     (* Wait for Searches *)
     while 

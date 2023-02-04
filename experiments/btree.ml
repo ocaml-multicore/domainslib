@@ -225,6 +225,75 @@ let insert tree k vl =
   end else
     insert_node ~max_size:tree.max_keys r k vl
 
+(* Ceiling division *)
+let ( ^/ ) i1 i2 = 
+  assert (i1 >= i2);
+  assert (i1 >= 0 && i2 >= 0);
+  let add = i1 mod i2 > 0 in
+  if add then i1/i2 + 1 else i1 / i2
+
+let range : int -> int -> int -> int -> (int * int) array =
+  fun t d lo hi -> 
+  let a = Array.init (t-1) (fun i -> 
+      let rstart = lo + (i * d) in
+      let rstop = lo + ((i+1)*d) in
+      rstart,rstop
+    ) in
+  a.(t-2) <- (fst a.(t-2), hi);
+  a
+
+let pp_range ppf (r : (int * int) array) = 
+  let pp_tuple ppf tup = Format.fprintf ppf "(%d, %d)" (fst tup) (snd tup) in
+  Format.pp_print_list pp_tuple ppf (Array.to_list r)
+
+let[@warning "-27"] build t pool (batch : (int * 'a) array) : 'a t = 
+  let nil = { n = 0; 
+              keys=[||];
+              values=[||];
+              leaf= true;
+              children= [||];
+              no_elements= 0 } in
+  let rec aux lo hi rightmost : 'a node =
+    let sz = hi - lo in
+    if sz <= t-1 && not (rightmost && sz = t-1) then
+      begin
+        (* This part is probably redundant *)
+        let leaf, children = if rightmost && sz = t-1 then 
+            false, Array.make t nil else true, [||] in
+
+        { n = sz; 
+          keys=Array.init sz (fun i -> fst batch.(lo+i));
+          values=Array.init sz (fun i -> snd batch.(lo+i));
+          leaf;
+          children;
+          no_elements= sz }
+      end
+    else begin
+      let d = sz ^/ t-1 in
+      let range = range t d lo (hi+1) in
+      let keys = Array.init (t-2) (fun i -> 
+          let idx = (range.(i) |> snd) - 1 in
+          fst batch.(idx)) in
+      let values = Array.init (t-2) (fun i -> 
+          let idx = (range.(i) |> snd) - 1 in
+          snd batch.(idx)) in
+      let node = { n = t-2; 
+                   keys;
+                   values;
+                   leaf= false;
+                   children= Array.make (t-1) nil;
+                   no_elements = hi-lo } in
+      (* Need to wrap in a Task.run *)
+      Domainslib.Task.parallel_for pool ~start:0 ~finish:(t-2) ~body:
+        (fun i -> 
+           let rstart, rstop = range.(i) in
+           let rightmost = i = t - 2 in
+           node.children.(i) <- aux rstart (rstop-1) rightmost
+        ); node
+    end
+  in
+  {max_keys = t; root = aux 0 (Array.length batch) false}
+
 let rec par_insert_node : Domainslib.Task.pool -> 'a node ->
   key_vals:((int * 'a) * int) array -> 
   range:(int * int) -> 
