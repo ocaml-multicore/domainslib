@@ -1,4 +1,4 @@
-  $ ./btree_tester.exe init btree.bc
+  $ ./btree_tester.exe init btree.bc 3
 
   $ ./btree_tester.exe add btree.bc 0 "key 0"
   $ ./btree_tester.exe add btree.bc 10 "key 10"

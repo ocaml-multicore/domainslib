@@ -246,7 +246,8 @@ let pp_range ppf (r : (int * int) array) =
   let pp_tuple ppf tup = Format.fprintf ppf "(%d, %d)" (fst tup) (snd tup) in
   Format.pp_print_list pp_tuple ppf (Array.to_list r)
 
-let[@warning "-27"] build t pool (batch : (int * 'a) array) : 'a t = 
+let[@warning "-27"] build max_keys pool (batch : (int * 'a) array) : 'a t = 
+  let t = max_keys + 1  in
   let nil = { n = 0; 
               keys=[||];
               values=[||];
