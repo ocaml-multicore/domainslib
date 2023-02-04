@@ -1,16 +1,16 @@
 (executable
  (name btree_tester)
- (libraries btree impbatch_btree)
+ (libraries btree batch_para_btree ib_btree)
  (modules btree_tester))
 
 (executable
  (name build_perf)
- (libraries btree domainslib unix)
+ (libraries batch_para_btree domainslib unix)
  (modules build_perf perf_utils))
 
 (test
  (name build_tests)
- (libraries btree domainslib)
+ (libraries batch_para_btree domainslib)
  (modules build_tests))
 
 (cram

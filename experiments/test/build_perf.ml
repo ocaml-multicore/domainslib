@@ -11,12 +11,11 @@ let test_seq_insert _pool () =
 
 let test_build pool () =
   let elems = Array.init insert_size (fun i -> i,i) in
-  let t = Btree.build 4 pool elems in
+  let t = Batch_para_btree.build ~max_keys pool elems in
   t
 
 let () = 
-  Format.printf "Sequential build: ";
-  Perf_utils.run test_seq_insert num_domains;
-  print_newline ();
-  Format.printf "Batch rebuild: ";
-  Perf_utils.run test_build num_domains
+  Format.printf "\n@[Sequential build: %.2fs@]@."
+    (Perf_utils.run test_seq_insert num_domains);
+  Format.printf "@[Batch rebuild: %.2fs@]@." 
+    (Perf_utils.run test_build num_domains)

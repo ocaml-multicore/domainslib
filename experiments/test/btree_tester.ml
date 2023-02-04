@@ -6,7 +6,7 @@ let dump_btree fname (btree: string Btree.t) =
 let read_btree fname : string Btree.t =
   In_channel.with_open_bin fname (fun ic -> (Marshal.from_channel ic : string Btree.t))
 
-module StrIBB = Impbatch_btree
+module StrIBB = Ib_btree
 
 let () =
   let args = List.init (Array.length Sys.argv - 1) (fun i -> Sys.argv.(i + 1)) in
@@ -36,7 +36,7 @@ let () =
       | domains_count :: _ -> int_of_string domains_count
     [@@alert "-unstable"] in
     let pool = Domainslib.Task.setup_pool ~num_domains:num_domains () in
-    let results = Btree.par_search ~pool tree keys in
+    let results = Batch_para_btree.par_search ~pool tree keys in
     for i = 0 to Array.length results - 1 do
       begin match results.(i) with
         | None -> print_endline (string_of_int keys.(i) ^ " ==> None")
@@ -63,7 +63,7 @@ let () =
       | domains_count :: _ -> int_of_string domains_count
     [@@alert "-unstable"] in
     let pool = Domainslib.Task.setup_pool ~num_domains:num_domains () in
-    let[@warning "-21"] () = Btree.par_insert ~pool tree keys_vals in
+    let[@warning "-21"] () = Batch_para_btree.par_insert ~pool tree keys_vals in
     dump_btree fname tree
   | ["init_impbatch"; fname] -> 
     let num_domains = Domain.recommended_domain_count () - 1
@@ -100,7 +100,7 @@ let () =
     [@@alert "-unstable"] in
     let pool = Domainslib.Task.setup_pool ~num_domains:num_domains () in
     let btree = 
-      Domainslib.Task.run pool (fun () -> Btree.build max_keys pool keys_vals) in
+      Domainslib.Task.run pool (fun () -> Batch_para_btree.build ~max_keys pool keys_vals) in
     dump_btree fname btree;
     print_btree btree;
     Domainslib.Task.teardown_pool pool

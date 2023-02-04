@@ -6,6 +6,16 @@
  (modules btree))
 
 (library
- (name impbatch_btree)
- (libraries btree domainslib)
- (modules impbatch_btree))
+ (name batch_para_btree)
+ (libraries domainslib btree)
+ (modules batch_para_btree))
+
+(executables
+ (names seq_btree ib_btree_one ib_btree_two)
+ (libraries btree batch_para_btree domainslib unix)
+ (modules seq_btree ib_btree_one ib_btree_two utils))
+
+(library
+ (name ib_btree)
+ (libraries batch_para_btree domainslib unix)
+ (modules ib_btree))

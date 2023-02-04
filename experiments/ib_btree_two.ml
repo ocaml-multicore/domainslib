@@ -1,11 +1,12 @@
 open Domainslib
 module T = Domainslib.Task
+module Btree = Batch_para_btree
 
 module type V = sig
   type t
 end
 
-module BatchedBtree(V : V) = struct
+module ExBatchedBtree(V : V) = struct
 
   type t = V.t Btree.t 
   type _ batch_op = 
@@ -15,8 +16,6 @@ module BatchedBtree(V : V) = struct
   type wrapped_batch_op = 
       Batched_op : 'a batch_op * ('a -> unit) -> wrapped_batch_op
 
-  type setter =
-    | Search_set of (V.t option -> unit)
   let create () = Btree.create ()
 
   let batch_limit = 20
@@ -58,45 +57,28 @@ module BatchedBtree(V : V) = struct
     do ()
     done
 end
-(* 
-module PolyBatchedBtree = struct
 
-  type 'elt t = 'elt Btree.t 
-  type ('elt, _) batch_op = 
-    | Search : int -> ('elt, 'elt option) batch_op
-    | Insert : int * 'elt -> ('elt, unit) batch_op
-
-  type wrapped_batch_op = 
-      Batched_op : ('elt, 'a) batch_op * ('a -> unit) -> wrapped_batch_op
-
-  let create () = Btree.create ()
-
-  let search_list = ref []
-
-  let bop : 'a t -> T.pool -> wrapped_batch_op array -> int -> unit = 
-    fun t pool bop_arr n ->
-    for i = 0 to n-1 do
-      match bop_arr.(i) with
-      | Batched_op (Search key, _) -> 
-        search_list := key :: !search_list;
-      | Batched_op (Insert (key, value), set) -> 
-        Btree.insert t key value; set ();
-    done;
-    let op_arr = Btree.par_search ~pool t (Array.of_list !search_list) in
-    let i = ref 0 in
-    Array.iter (fun (res : 'a option) -> 
-        while match bop_arr.(!i) with 
-            Batched_op (Search _, _) -> false 
-          | _ -> true do
-          incr i
-        done;
-        match bop_arr.(!i) with 
-        | Batched_op (Search _, set) -> set res 
-        | _ -> failwith "Impossible") op_arr
-end *)
-
-include Batcher.Make(BatchedBtree(String))
-let search t i = batchify t (Search i)
-let insert t k v = batchify t (Insert (k, v))
+(* Define Implicit Batching version *)
+module ImpBatchedBtree(V : V) = struct
+  open Batcher.Make(ExBatchedBtree(V))
+  let create = create
+  let search t i = batchify t (Search i)
+  let insert t k v = batchify t (Insert (k, v))
+end
 
 
+(* Main program *)
+let inserts = 10_000_000
+let main pool () =
+  let module S_Btree = ImpBatchedBtree(String) in
+  let t = S_Btree.create pool in
+  for i = 1 to inserts do
+    let value = "Key" ^ string_of_int i in
+    S_Btree.insert t i value
+  done;
+  assert (S_Btree.search t (inserts/2) |> Option.is_some)
+
+let () = 
+  let pool = Task.setup_pool ~num_domains:7 () in
+  Utils.time (fun () -> Task.run pool (main pool));
+  Task.teardown_pool pool
