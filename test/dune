@@ -4,8 +4,8 @@
  (modules test_chan)
  (modes native))
 
-(tests
- (names imp_bcounter)
+(executable
+ (name imp_bcounter)
  (libraries domainslib unix)
  (modules imp_bcounter))
 
@@ -15,7 +15,7 @@
  (modules lazy_slist)
  (modes native))
 
-(tests
+(executables
  (names
   bench_mpmc_queue
   test_batch_counting
