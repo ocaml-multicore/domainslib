@@ -9,9 +9,9 @@
  (modules batch_para_btree))
 
 (executables
- (names seq_btree ib_btree_one ib_btree_two)
- (libraries btree batch_para_btree domainslib unix)
- (modules seq_btree ib_btree_one ib_btree_two utils))
+ (names seq_btree ib_btree_two bop_lin)
+ (libraries btree batch_para_btree domainslib unix qcheck-lin.domain)
+ (modules seq_btree ib_btree_one ib_btree_two utils bop_lin))
 
 (library
  (name ib_btree)

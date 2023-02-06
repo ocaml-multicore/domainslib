@@ -139,6 +139,18 @@ let flatten t =
   in
   aux t.root
 
+let merge_l l1 l2 =
+  let rec walk l1 l2 acc =
+    match l1, l2 with
+    | [], [] -> acc
+    | l , [] | [], l -> List.rev_append l acc
+    | h1 :: tl1, h2 :: tl2 -> 
+      if fst h1 <  fst h2 then 
+        walk tl1 (h2::tl2) (h1 :: acc) else 
+        walk (h1 :: tl1) tl2 (h2 :: acc)
+  in
+  walk l1 l2 [] |> List.rev
+
 let merge i1 i2 =
   let hd_tl i = Iter.head i, Iter.drop 1 i in
   let rec aux acc i1 i2 = 
@@ -157,9 +169,9 @@ let par_rebuild ~pool (t: 'a t) (kv_arr : (int * 'a) array) =
   (* keys is a array of (key, index) where index is the position in the original search query *)
   let max_keys = t.max_keys in
   Array.sort (fun (k,_) (k',_) -> Int.compare k k') kv_arr;
-  let i1 = Iter.of_array kv_arr in
-  let i2 = flatten t in
-  let batch = merge i1 i2 in
+  let i1 = kv_arr |> Array.to_list in
+  let i2 = flatten t |> Iter.to_list in
+  let batch = merge_l i1 i2 |> Array.of_list in
   build_aux ~max_keys pool batch
 
 let rec par_insert_node : Domainslib.Task.pool -> 'a node ->
