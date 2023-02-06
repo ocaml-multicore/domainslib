@@ -13,7 +13,13 @@
  (libraries btree batch_para_btree domainslib unix qcheck-lin.domain)
  (preprocess
   (pps ppx_deriving.show))
- (modules seq_btree ib_btree_one ib_btree_two utils bop_lin))
+ (modules
+  seq_btree
+  ib_btree_one
+  ib_btree_two
+  ib_btree_one_flipped
+  utils
+  bop_lin))
 
 (library
  (name ib_btree)

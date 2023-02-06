@@ -17,5 +17,5 @@ let test_build pool () =
 let () = 
   Format.printf "\n@[Sequential build: %.2fs@]@."
     (Perf_utils.run test_seq_insert num_domains);
-  Format.printf "@[Batch rebuild: %.2fs@]@." 
+  Format.printf "@[Batch build: %.2fs@]@." 
     (Perf_utils.run test_build num_domains)

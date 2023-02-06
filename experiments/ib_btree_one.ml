@@ -17,14 +17,14 @@ module ExBatchedBtree(V : V) = struct
 
   let create () = Btree.create ()
 
-  let bop : V.t Btree.t -> Task.pool -> wrapped_batch_op array -> int -> unit = 
+  let[@warning "-27"] bop : V.t Btree.t -> Task.pool -> wrapped_batch_op array -> int -> unit = 
     fun t _pool bop_arr n ->
     for i = 0 to n-1 do
       match bop_arr.(i) with
       | Batched_op (Search key, set) -> 
         set @@ Btree.search t key
       | Batched_op (Insert (key, value), set) -> 
-        set @@ Btree.insert t key value
+        set @@ Btree.insert t key value 
     done
 end
 

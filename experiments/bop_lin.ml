@@ -48,15 +48,36 @@ type [@warning "-37"] op =
 type result =
   | Ins of unit
   | Search of string option
-[@@deriving show]
 
-let print_result a =
-  let l = Array.to_list a in
-  let pp_l ppf = Format.pp_print_list pp_result ppf in
-  Format.printf "@[ [|%a|]@; @]@." pp_l l
+let pp_op ppf (op : op) = match op with
+  | Ins (k,v) -> Format.fprintf ppf "Insert(%d, %s)" k v
+  | Search k -> Format.fprintf ppf "       Search(%d)" k
+
+let pp_result ppf = function
+  | Ins _ -> Format.fprintf ppf "()"
+  | Search value -> 
+    match value with
+    | Some s -> Format.fprintf ppf "Some(%s)" s
+    | None -> Format.fprintf ppf "None"
+
+let pp_result_list ppf a =
+  Format.fprintf ppf "@[<v>@ Start@ ";
+  Array.iter (fun elt -> Format.fprintf ppf "-> %a@ " pp_result elt) a;
+  Format.fprintf ppf "End@]"
+
+let[@warning "-32"] pp_op_list ppf a =
+  Format.fprintf ppf "@[<v>@ Start@ ";
+  List.iter (fun elt -> Format.fprintf ppf "-> %a@ " pp_op elt) a;
+  Format.fprintf ppf "End@]"
+
+let pp_combine_list ppf res_op =
+  let res_a, op_l = res_op in 
+  let res_l = Array.to_list res_a in
+  List.iter2 (fun res op -> 
+      Format.fprintf ppf "-> %a ==> %a@ " pp_op op pp_result res) res_l op_l
 
 let pool = Domainslib.Task.setup_pool ~num_domains:3 ()
-let ops : op list= [Search (2); Ins (1, "key 1"); Search (1); Ins (2, "key2")]
+let ops : op list = [Search (2); Ins (1, "key 1"); Search (1); Ins (2, "key 2")]
 
 let conv_seq_op : op -> ('a SeqBtree.t -> result) = function 
   | Ins (k, v) -> fun t -> Ins (Btree.insert t k v)
@@ -87,16 +108,21 @@ let rec perms = function
     [] -> [[]]
   | h :: t -> combine h (perms t)
 
-let[@warning "-32"] seq_exec batch =
-  let seq_op = List.map conv_seq_op batch in
-  let seq_perms = perms seq_op in
-  let itr = Iter.of_list seq_perms in
-  Iter.map (fun exec_order -> 
+let[@warning "-32"] seq_exec batch = 
+  let seq_perms = perms batch in
+  let seq_op = List.map (fun l -> List.map conv_seq_op l, l) seq_perms in
+  let itr = Iter.of_list seq_op in
+  Iter.map (fun (exec_order,op_list) -> 
       let t = Btree.create () in
-      List.map (fun op -> op t) exec_order 
-      |> Array.of_list
+      let res = List.map (fun op -> op t) exec_order 
+                |> Array.of_list in
+      res, exec_order, op_list
     ) itr
-let[@warning "-32"] print_seq () = Iter.iter print_result (seq_exec ops)
+
+let[@warning "-32"] print_seq () = 
+  let res = seq_exec ops |> Iter.map (fun (fst,_,_) -> fst) in
+  Iter.iter (fun seq -> Format.printf "%a" pp_result_list seq) res
+
 let[@warning "-32"] bop_exec batch : result array = 
   let batchsz = List.length batch in
   let chan = Domainslib.Chan.make_bounded batchsz in
@@ -107,23 +133,26 @@ let[@warning "-32"] bop_exec batch : result array =
 
 let[@warning "-32"] print_bop () = 
   Domainslib.Task.run pool (fun () -> 
-      print_result @@ bop_exec ops 
+      Format.printf "%a" pp_result_list @@ bop_exec ops
     );
   Domainslib.Task.teardown_pool pool
 
 let check_linearizable () =
   let res = Domainslib.Task.run pool (fun () -> 
       let bop_res = bop_exec ops in
-      print_result bop_res;
       let seq_res = seq_exec ops in
-      Iter.exists (fun exec -> exec = bop_res) seq_res
+      let itr = Iter.filter (fun (exec,_,_) -> exec <> bop_res) seq_res in
+      not @@ Iter.is_empty itr, itr, bop_res
     ) in
   Domainslib.Task.teardown_pool pool;
   res
 
 let () = 
   print_newline ();
-  if check_linearizable () then 
-    Format.printf "@[Sequential ordering found!@]@."
+  let linearizable, seq_res, _bop_res = check_linearizable () in
+  if linearizable then
+    Format.printf "@[<v>@ A Sequential ordering was found!@]@."
   else 
-    Format.printf "@[No Sequential ordering exists!@]@."
+    Format.printf "@[<v>@ No Sequential ordering exists!@]@.";
+  let seq_res_ordering,_,seq_op_ordering = Iter.head_exn seq_res in
+  Format.printf "@[<v>%a@]@." pp_combine_list (seq_res_ordering, seq_op_ordering)
