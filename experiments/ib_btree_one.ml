@@ -47,10 +47,10 @@ let main pool () =
   done;
   assert (S_Btree.search t (inserts/2) |> Option.is_some)
 
-let () = 
-  let pool = Task.setup_pool ~num_domains:7 () in
-  Utils.time (fun () -> Task.run pool (main pool));
-  Task.teardown_pool pool
+(* let () = 
+   let pool = Task.setup_pool ~num_domains:7 () in
+   Utils.time (fun () -> Task.run pool (main pool));
+   Task.teardown_pool pool *)
 
 (* Linearizability Tester doesn't quite work for our use case because we have the wrap it over the implicit batcher which creates some issue with the execution  *)
 

@@ -41,13 +41,42 @@ let () =
 module ExBatchedBtree = Ib_btree_one.ExBatchedBtree(String)
 module SeqBtree = Btree
 
-type 'a op = Ins of int * 'a | Search of int 
+type [@warning "-37"] op = 
+  | Ins of int * string 
+  | Search of int 
+
+type result =
+  | Ins of unit
+  | Search of string option
+[@@deriving show]
+
+let print_result a =
+  let l = Array.to_list a in
+  let pp_l ppf = Format.pp_print_list pp_result ppf in
+  Format.printf "@[ [|%a|]@; @]@." pp_l l
+
 let pool = Domainslib.Task.setup_pool ~num_domains:3 ()
-let ops : ('a op) list= []
+let ops : op list= [Search (2); Ins (1, "key 1"); Search (1); Ins (2, "key2")]
 
-let conv_seq_op : 'a op -> ('a SeqBtree.t -> unit) = failwith "unimplemeneted"
+let conv_seq_op : op -> ('a SeqBtree.t -> result) = function 
+  | Ins (k, v) -> fun t -> Ins (Btree.insert t k v)
+  | Search k -> fun t -> Search (Btree.search t k)
 
-let conv_batch_op : 'a op -> ExBatchedBtree.wrapped_batch_op = failwith "unimplemented"
+let conv_batch_op (op : op) (chan : result Domainslib.Chan.t) =
+  let open Domainslib in
+  match op with
+  | Ins (k,v) -> 
+    let pr, set = Task.promise () in
+    let wrapped_set res = 
+      set res;
+      Domainslib.Chan.send chan (Ins (Task.await pool pr)) in
+    ExBatchedBtree.Batched_op (ExBatchedBtree.Insert (k,v), wrapped_set)
+  | Search k -> 
+    let pr, set = Task.promise () in
+    let wrapped_set res = 
+      set res;
+      Domainslib.Chan.send chan (Search (Task.await pool pr)) in
+    ExBatchedBtree.Batched_op (ExBatchedBtree.Search k, wrapped_set)
 
 let rec interleave e seen = function
     [] -> [seen @ [e]]
@@ -58,23 +87,43 @@ let rec perms = function
     [] -> [[]]
   | h :: t -> combine h (perms t)
 
-let seq_exec batch : ExBatchedBtree.t Iter.t =
+let[@warning "-32"] seq_exec batch =
   let seq_op = List.map conv_seq_op batch in
   let seq_perms = perms seq_op in
-  Iter.of_list seq_perms |>
+  let itr = Iter.of_list seq_perms in
   Iter.map (fun exec_order -> 
       let t = Btree.create () in
-      List.iter (fun op -> op t) exec_order;
-      t
-    )
-
-let bop_exec batch = 
-  let batch_ops = List.map conv_batch_op batch |> Array.of_list in
+      List.map (fun op -> op t) exec_order 
+      |> Array.of_list
+    ) itr
+let[@warning "-32"] print_seq () = Iter.iter print_result (seq_exec ops)
+let[@warning "-32"] bop_exec batch : result array = 
+  let batchsz = List.length batch in
+  let chan = Domainslib.Chan.make_bounded batchsz in
+  let batch_ops = List.map (fun op -> conv_batch_op op chan) batch |> Array.of_list in
   let t = ExBatchedBtree.create () in
   ExBatchedBtree.bop t pool batch_ops (Array.length batch_ops);
-  t
+  Array.init batchsz (fun _ -> Domainslib.Chan.recv chan)
+
+let[@warning "-32"] print_bop () = 
+  Domainslib.Task.run pool (fun () -> 
+      print_result @@ bop_exec ops 
+    );
+  Domainslib.Task.teardown_pool pool
 
 let check_linearizable () =
-  let bop_res = bop_exec ops in
-  let seq_res = seq_exec ops in
-  Iter.exists (fun exec -> exec = bop_res) seq_res
+  let res = Domainslib.Task.run pool (fun () -> 
+      let bop_res = bop_exec ops in
+      print_result bop_res;
+      let seq_res = seq_exec ops in
+      Iter.exists (fun exec -> exec = bop_res) seq_res
+    ) in
+  Domainslib.Task.teardown_pool pool;
+  res
+
+let () = 
+  print_newline ();
+  if check_linearizable () then 
+    Format.printf "@[Sequential ordering found!@]@."
+  else 
+    Format.printf "@[No Sequential ordering exists!@]@."
