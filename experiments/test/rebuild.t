@@ -11,8 +11,8 @@
    - values=[5: "key 5"; 10: "key 10"]
    - child(k=5):
       node(n=2,leaf=false,no_elts=4)
-       - values=[1: "key 1"; 4: "key 4"]
-       - child(k=1):
+       - values=[2: "key 2"; 4: "key 4"]
+       - child(k=2):
           node(n=1,leaf=true,no_elts=1)
            - values=[1: "key 1"]
   

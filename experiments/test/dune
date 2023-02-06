@@ -16,5 +16,5 @@
 (cram
  (deps ./btree_tester.exe))
 
-; (cram
-;  (deps ./build_perf.exe ./rebuild_perf.exe))
+(cram
+ (deps ./build_perf.exe ./rebuild_perf.exe))
