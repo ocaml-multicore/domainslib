@@ -14,7 +14,7 @@
 
 *)
 
-module ExBatchedBtree = Ib_btree_one_flipped.ExBatchedBtree(String)
+module ExBatchedBtree = Ib_btree_one.ExBatchedBtree(String)
 module SeqBtree = Btree
 
 type [@warning "-37"] op = 
@@ -26,34 +26,36 @@ type result =
   | Search of string option
   | Null
 
-let pp_op ~indent ppf (op : op) = match op with
-  | Ins (k,v) -> Format.fprintf ppf "Insert(%d, %s)" k v
+let pp_op ppf (op : op) = match op with
+  | Ins (k,v) -> 
+    let ins_s = Format.sprintf "Insert(%d, %s)" k v in
+    Format.fprintf ppf "%16s" ins_s
   | Search k -> 
-    let spaces = String.make indent ' ' in
-    Format.fprintf ppf "%sSearch(%d)" spaces k
+    let search_s = Format.sprintf "Search(%d)" k in
+    Format.fprintf ppf "%16s" search_s
 
 let pp_result ppf = function
-  | Ins _ -> Format.fprintf ppf "()"
+  | Ins _ -> Format.fprintf ppf "%16s" "()"
   | Search value -> 
     (match value with
-     | Some s -> Format.fprintf ppf "Some(%s)" s
-     | None -> Format.fprintf ppf "None")
+     | Some s -> 
+       let s = Format.sprintf "Some(%s)" s in
+       Format.fprintf ppf "%16s" s
+     | None -> Format.fprintf ppf "%16s" "None")
   | Null -> failwith "Bad Case"
 
-let pp_result_list ppf a =
-  Format.fprintf ppf "@[<hov> [|";
-  List.iter (fun elt -> Format.fprintf ppf "; %a@ " pp_result elt) a;
-  Format.fprintf ppf "|]@]@."
-
-(* let pp_op_list ppf l =
-   Format.fprintf ppf "[|@[<v>@ ";
-   List.iter (fun elt -> Format.fprintf ppf "%a@ " (pp_op ~indent:0) elt) l;
-   Format.fprintf ppf "@]%20s|]@." " " *)
+let pp_batch_op_res ppf (ops, res) =
+  Format.fprintf ppf "@[<hov> Ops : [|";
+  List.iter (fun elt -> Format.fprintf ppf "; %a@ " pp_op elt) ops;
+  Format.fprintf ppf "|]@]@.";
+  Format.fprintf ppf "@[<hov> Res : [|";
+  List.iter (fun elt -> Format.fprintf ppf "; %a@ " pp_result elt) res;
+  Format.fprintf ppf "|]@]"
 
 let pp_combine_list ppf op_res =
   let op_l, res_l = op_res in 
   List.iter2 (fun res op -> 
-      Format.fprintf ppf "-> %a ==> %a@ " (pp_op ~indent:7) op pp_result res) res_l op_l
+      Format.fprintf ppf "-> %a ==> %a@ " pp_op op pp_result res) res_l op_l
 
 let conv_seq_op : op -> ('a SeqBtree.t -> result) = function 
   | Ins (k, v) -> fun t -> Ins (Btree.insert t k v)
@@ -140,13 +142,12 @@ let check_linearizable () =
 let () = 
   print_newline ();
   let linearizable, seq_res, bop_res = check_linearizable () in
-  Format.printf "@[Result of BOP = %a@]@." pp_result_list bop_res;
   if linearizable > 0 then begin
-    Format.printf "@[<v>@ A Sequential ordering was found for the batch!@ @ Valid Orderings:@]@.";
+    Format.printf "@[<v>@ A Sequential ordering was found for the batch!@ %a@ @\n (Valid Orderings)@]@." pp_batch_op_res (batch, bop_res);
     Iter.iter (fun res -> let seq_op_ordering = List.map snd res in
                 let seq_res_ordering = List.map thrd res in
-                Format.printf "@[<v>%a@ @]@." pp_combine_list 
-                  (seq_op_ordering, seq_res_ordering)) seq_res
+                Format.printf "@[<v>%a@ @]" pp_combine_list 
+                  (seq_op_ordering, seq_res_ordering)) seq_res;
   end
   else 
-    Format.printf "@[<v>@ No Sequential ordering exists for the batch!@ %a@]@." pp_result_list bop_res;
+    Format.printf "@[<v>@ No Sequential ordering exists for the batch!@ %a@ @ @]@." pp_batch_op_res (batch,bop_res)
