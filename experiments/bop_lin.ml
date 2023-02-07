@@ -36,7 +36,13 @@ let () =
   ] *)
 
 
-(* The alternative solution is to take some set of executions and see if the result can be reproduced with some sequential ordering exists for it *)
+(* 
+
+  The alternative solution is to take some set of executions and see if the result can be reproduced with some sequential ordering exists for it. This is on a best effort situation whereby the order of the results are concurrently published to a MP Channel. There is a data race here whereby the published result can be invalid
+
+   A way to counter this is to check the state of the data structure at the end of the batch insert and test that against a sequential version. However, this relies on the semantics of the batch operations that must ensure that it will not perform optimizing operations that change the shape of the DS but preserve it's properties
+
+*)
 
 module ExBatchedBtree = Ib_btree_one.ExBatchedBtree(String)
 module SeqBtree = Btree
@@ -66,9 +72,9 @@ let pp_result_list ppf a =
   Format.fprintf ppf "End@]"
 
 let[@warning "-32"] pp_op_list ppf a =
-  Format.fprintf ppf "@[<v>@ Start@ ";
-  List.iter (fun elt -> Format.fprintf ppf "-> %a@ " pp_op elt) a;
-  Format.fprintf ppf "End@]"
+  Format.fprintf ppf "[|@[<v>@ ";
+  List.iter (fun elt -> Format.fprintf ppf "%a@ " pp_op elt) a;
+  Format.fprintf ppf "@]%20s|]@." " "
 
 let pp_combine_list ppf res_op =
   let res_a, op_l = res_op in 
@@ -151,8 +157,8 @@ let () =
   print_newline ();
   let linearizable, seq_res, _bop_res = check_linearizable () in
   if linearizable then
-    Format.printf "@[<v>@ A Sequential ordering was found!@]@."
+    Format.printf "@[<v>@ A Sequential ordering was found for the batch!@ %a@]@." pp_op_list ops
   else 
-    Format.printf "@[<v>@ No Sequential ordering exists!@]@.";
+    Format.printf "@[<v>@ No Sequential ordering exists for the batch!@ %a@]@." pp_op_list ops;
   let seq_res_ordering,_,seq_op_ordering = Iter.head_exn seq_res in
-  Format.printf "@[<v>%a@]@." pp_combine_list (seq_res_ordering, seq_op_ordering)
+  Format.printf "@[<v>Ordering:@ %a@]@." pp_combine_list (seq_res_ordering, seq_op_ordering)
