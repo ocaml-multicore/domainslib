@@ -1,3 +1,18 @@
+(* 
+
+1. Take any sequential data structure, and apply it to the Batcher.Make(DS) functor, following this generic template. 
+
+2. You now have a concurrent version of your Data Structure that is always sequentially consistent. The reason why it is thread-safe is because the synchronization is handled by the implicit batching scheduler. To wit, we can submit operations to the DS concurrently but they do not execute concurrently YET.
+
+3. Parallelism can then be incrementally added on to the DS in a modular way per operation because we have control over when to run the concurrent operations and the sequential operations
+
+EXTENSIONS:
+1. [EX_BATCH Interface] Perhaps we can add some generics at the level of bop to allow you to automatically and efficiently optimize based on the properties of the operations, E.g. commutative, associative... 
+
+2. [Batcher Interface] We can provide plugins that provide more metadata about the operations or partition them efficiently and automatically returning a 
+Map(Op -> Op array) instead of just an array
+
+*)
 open Domainslib
 
 module type V = sig
@@ -37,56 +52,17 @@ module ImpBatchedBtree(V : V) = struct
 end
 
 (* Main program *)
-let inserts = 10_000_000
-let main pool () =
-  let module S_Btree = ImpBatchedBtree(String) in
-  let t = S_Btree.create pool in
-  for i = 1 to inserts do
+(* let inserts = 10_000_000
+   let main pool () =
+   let module S_Btree = ImpBatchedBtree(String) in
+   let t = S_Btree.create pool in
+   for i = 1 to inserts do
     let value = "Key" ^ string_of_int i in
     S_Btree.insert t i value
-  done;
-  assert (S_Btree.search t (inserts/2) |> Option.is_some)
+   done;
+   assert (S_Btree.search t (inserts/2) |> Option.is_some) *)
 
 (* let () = 
    let pool = Task.setup_pool ~num_domains:7 () in
    Utils.time (fun () -> Task.run pool (main pool));
    Task.teardown_pool pool *)
-
-(* Linearizability Tester doesn't quite work for our use case because we have the wrap it over the implicit batcher which creates some issue with the execution  *)
-
-(* The alternative solution is to take some set of executions and see if the result can be reproduced with some sequential ordering exists for it *)
-
-(* 
-module ExDS =
-struct
-  module String_BTree = ImpBatchedBtree(String)
-  type t = String_BTree.t
-  let pool = ref None
-  let init _ = 
-    let new_pool = Task.setup_pool ~num_domains:1 () in
-    pool := Some new_pool;
-    String_BTree.create new_pool
-  let cleanup _ = 
-    match !pool with
-    | Some p ->  Task.teardown_pool p
-    | None -> ()
-
-  open Lin
-  let a,b = nat_small,string_small_printable
-
-  let insert t k v =
-    let pool = Option.get !pool in
-    Task.run pool (fun () -> String_BTree.insert t k v)
-  let search t k =
-    let pool = Option.get !pool in
-    Task.run pool (fun () -> String_BTree.search t k)
-  let api =
-    [ val_ "Btree.insert" insert (t @-> a @-> b @-> returning unit);
-      val_ "Btree.search" search (t @-> a @-> returning (option b)); ]
-end
-
-module SBT = Lin_domain.Make(ExDS)
-let () = 
-  QCheck_base_runner.run_tests_main [
-    SBT.lin_test ~count:1 ~name:"ExBatchedBtree DSL test";
-  ] *)

@@ -5,7 +5,7 @@
 
 (library
  (name batch_para_btree)
- (libraries domainslib btree)
+ (libraries domainslib btree seq)
  (modules batch_para_btree))
 
 (executables
@@ -16,8 +16,9 @@
  (modules
   seq_btree
   ib_btree_one
-  ib_btree_two
   ib_btree_one_flipped
+  ib_btree_one_bad
+  ib_btree_two
   utils
   bop_lin))
 
