@@ -1,4 +1,5 @@
 open Domainslib
+module T = Domainslib.Task
 module Btree = Batch_para_btree
 
 module type V = sig

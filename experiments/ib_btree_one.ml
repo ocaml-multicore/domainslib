@@ -14,6 +14,7 @@ Map(Op -> Op array) instead of just an array
 
 *)
 open Domainslib
+module T = Domainslib.Task
 
 module type V = sig
   type t
@@ -52,17 +53,17 @@ module ImpBatchedBtree(V : V) = struct
 end
 
 (* Main program *)
-(* let inserts = 10_000_000
+(* let inserts = 1_000_000
    let main pool () =
    let module S_Btree = ImpBatchedBtree(String) in
    let t = S_Btree.create pool in
-   for i = 1 to inserts do
-    let value = "Key" ^ string_of_int i in
-    S_Btree.insert t i value
-   done;
-   assert (S_Btree.search t (inserts/2) |> Option.is_some) *)
+   T.parallel_for pool ~start:1 ~finish:inserts ~body:(fun i ->
+      let value = "key" ^ string_of_int i in
+      S_Btree.insert t i value
+    );
+   assert (S_Btree.search t (inserts/2) |> Option.is_some) 
 
-(* let () = 
+   let () = 
    let pool = Task.setup_pool ~num_domains:7 () in
    Utils.time (fun () -> Task.run pool (main pool));
    Task.teardown_pool pool *)

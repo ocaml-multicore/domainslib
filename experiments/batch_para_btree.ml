@@ -80,9 +80,6 @@ let[@warning "-27"] build_aux ~max_keys pool (batch : (int * 'a) array) : 'a nod
     let sz = hi - lo in
     if sz <= t-1 && not (rightmost && sz = t-1) then
       begin
-        (*         let leaf, children = if rightmost && sz = t-1 then 
-                    false, Array.make t nil else true, [||] in
-        *)
         { n = sz; 
           keys=Array.init sz (fun i -> fst batch.(lo+i));
           values=Array.init sz (fun i -> snd batch.(lo+i));
@@ -106,29 +103,92 @@ let[@warning "-27"] build_aux ~max_keys pool (batch : (int * 'a) array) : 'a nod
                    children= Array.make (t-1) nil;
                    no_elements = hi-lo } in
       (* Need to wrap in a Task.run *)
-      Domainslib.Task.parallel_for pool ~start:0 ~finish:(t-2) ~body:
-        (fun i -> 
-           let rstart, rstop = range.(i) in
-           let rightmost = i = t - 2 in
-           node.children.(i) <- aux rstart (rstop-1) rightmost
-        ); node
+      if node.no_elements < 1000 then 
+        begin
+          for i = 0 to t-2 do 
+            let rstart, rstop = range.(i) in
+            let rightmost = i = t - 2 in
+            node.children.(i) <- aux rstart (rstop-1) rightmost
+          done
+        end
+      else
+        Domainslib.Task.parallel_for pool ~start:0 ~finish:(t-2) ~body:
+          (fun i -> 
+             let rstart, rstop = range.(i) in
+             let rightmost = i = t - 2 in
+             node.children.(i) <- aux rstart (rstop-1) rightmost
+          ); 
+      node
+    end
+  in
+  aux 0 (Array.length batch) false
+
+let[@warning "-27"] build_aux_alt ~max_keys pool (batch : (int * 'a) array) : 'a node = 
+  let t = max_keys + 1  in
+  let nil = { n = 0; 
+              keys=[||];
+              values=[||];
+              leaf= true;
+              children= [||];
+              no_elements= 0 } in
+  let rec aux lo hi rightmost : 'a node =
+    let sz = hi - lo in
+    if sz <= t-1 && not (rightmost && sz = t-1) then
+      begin
+        { n = sz; 
+          keys=Array.init sz (fun i -> fst batch.(lo+i));
+          values=Array.init sz (fun i -> snd batch.(lo+i));
+          leaf = true;
+          children = [||];
+          no_elements= sz }
+      end
+    else begin
+      let d = sz ^/ t-1 in
+      let range = range t d lo (hi+1) in
+      let keys = Array.init (t-2) (fun i -> 
+          let idx = (range.(i) |> snd) - 1 in
+          fst batch.(idx)) in
+      let values = Array.init (t-2) (fun i -> 
+          let idx = (range.(i) |> snd) - 1 in
+          snd batch.(idx)) in
+      let node = { n = t-2; 
+                   keys;
+                   values;
+                   leaf= false;
+                   children= Array.make (t-1) nil;
+                   no_elements = hi-lo } in
+      (* Need to wrap in a Task.run *)
+      begin
+        for i = 0 to t-2 do 
+          let rstart, rstop = range.(i) in
+          let rightmost = i = t - 2 in
+          node.children.(i) <- aux rstart (rstop-1) rightmost
+        done
+      end;
+      node
     end
   in
   aux 0 (Array.length batch) false
 
 let build ~max_keys pool batch = 
-  {max_keys = max_keys + 1;  root = build_aux ~max_keys pool batch}
+  {max_keys = max_keys + 1;  root = build_aux_alt ~max_keys pool batch}
+
+let rec int_range_downto start stop =
+  fun () ->
+  if start > stop 
+  then Seq.Nil
+  else Seq.Cons (stop, int_range_downto start (stop - 1))
 
 let flatten t =
-  let open Iter in
+  let open Seq in
   let rec aux node =
     if node.leaf then
       let elems = Array.map2 (fun k v -> k, v) node.keys node.values in
-      of_array elems
+      Array.to_seq elems
     else begin
       let back = 
-        (node.n) --^ 1 |> 
-        fold (fun acc i -> 
+        int_range_downto 1 (node.n) |> 
+        fold_left (fun acc i -> 
             let tl = aux (node.children.(i)) in
             let kv = node.keys.(i-1), node.values.(i-1) in
             let comb = cons kv tl in
@@ -165,14 +225,44 @@ let merge i1 i2 =
   in
   aux Iter.empty i1 i2 |> Iter.rev |> Iter.to_array
 
+let merge_alt i1 i2 : _ Iter.t =
+  let i1 = Seq.to_dispenser i1 in
+  let i2 = Seq.to_dispenser i2 in
+  let next i h = match h with None -> i () | Some v -> Some v in 
+  let rec aux i1 h1 i2 h2 f = 
+    match next i1 h1, next i2 h2 with
+    | None,None -> ()
+    | (Some hd1, Some hd2) -> 
+      if hd1 < hd2
+      then (f hd1; aux i1 None i2 (Some hd2) f)
+
+      else (f hd2; aux i1 (Some hd1) i2 None f)
+    | (Some hd1, None) -> (f hd1; aux i1 None i2 None f)
+    | (None, Some hd2) -> (f hd2; aux i1 None i2 None f)
+  in
+  fun f -> aux i1 None i2 None f
+
+
 let par_rebuild ~pool (t: 'a t) (kv_arr : (int * 'a) array) =
-  (* keys is a array of (key, index) where index is the position in the original search query *)
-  let max_keys = t.max_keys in
-  Array.sort (fun (k,_) (k',_) -> Int.compare k k') kv_arr;
-  let i1 = kv_arr |> Array.to_list in
-  let i2 = flatten t |> Iter.to_list in
-  let batch = merge_l i1 i2 |> Array.of_list in
-  build_aux ~max_keys pool batch
+  if Array.length kv_arr = 0 then t.root
+  else begin
+    (* keys is a array of (key, index) where index is the position in the original search query *)
+    let max_keys = t.max_keys in
+    Array.sort (fun (k,_) (k',_) -> Int.compare k k') kv_arr;
+
+    (* 1. Work out the total size of elements in the merged array
+       2. Allocate buffer of this size
+       3. Convert kv_array to iter
+       4. flatten to iter (Nothing needs to be done)
+       5. Write a merge into array (3 params)
+    *)
+    let batch = Array.make (Array.length kv_arr + t.root.no_elements) kv_arr.(0) in
+    let i1 = kv_arr |> Array.to_seq in
+    let i2 = flatten t in
+    let merged = merge_alt i1 i2 in
+    Iter.iteri (fun i vl -> batch.(i) <- vl) merged;
+    build_aux ~max_keys pool batch
+  end
 
 let rec par_insert_node : Domainslib.Task.pool -> 'a node ->
   key_vals:((int * 'a) * int) array -> 

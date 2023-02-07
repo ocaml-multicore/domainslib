@@ -1,4 +1,6 @@
-$ ./rebuild_perf.exe 10_000_000 3 8
+./rebuild_perf.exe max_keys preset factor num_domains
 
-Sequential build: 0.00s
-Batch rebuild: 0.00s
+$ ./rebuild_perf.exe 3 1_000_000 10 8
+  
+Sequential build: 26.29s
+Batch rebuild: 13.97s

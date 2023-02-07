@@ -40,13 +40,8 @@ module ExBatchedBtree(V : V) = struct
         let pr = Task.async pool (fun () -> Btree.search t key) in
         Chan.send search_chan (pr, set);
       | Batched_op (Insert (key, value), set) -> 
-        Chan.send insert_chan (key, value); set ()
-    done;
-    (* Inserts *)
-    let n = populate insert_batch insert_chan in
-    for i = 0 to n-1 do
-      let[@warning "-26"] key, value = Option.get insert_batch.(i) in
-      (* Btree.insert t key value *)()
+        set @@ Btree.insert t key value
+        (* Chan.send insert_chan (key, value); set () *)
     done;
     (* Wait for Searches *)
     while 
@@ -55,7 +50,13 @@ module ExBatchedBtree(V : V) = struct
       | Some (pr, set) -> set @@ Task.await pool pr; true
       | None -> false 
     do ()
-    done
+    done;
+    (* Inserts *)
+    let n = populate insert_batch insert_chan in
+    for i = 0 to n-1 do
+      let[@warning "-26"] key, value = Option.get insert_batch.(i) in
+      (* Btree.insert t key value *)()
+    done;
 end
 
 (* Define Implicit Batching version *)
@@ -68,14 +69,14 @@ end
 
 
 (* Main program *)
-let inserts = 10_000_000
+let inserts = 1_000_000
 let main pool () =
   let module S_Btree = ImpBatchedBtree(String) in
   let t = S_Btree.create pool in
-  for i = 1 to inserts do
-    let value = "Key" ^ string_of_int i in
-    S_Btree.insert t i value
-  done;
+  T.parallel_for pool ~start:1 ~finish:inserts ~body:(fun i ->
+      let value = "key" ^ string_of_int i in
+      S_Btree.insert t i value
+    );
   assert (S_Btree.search t (inserts/2) |> Option.is_some)
 
 let () = 
