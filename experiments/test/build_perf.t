@@ -1,28 +1,38 @@
 $ ./build_perf.exe 10_000_000 3 1
 
-Sequential build: 4.80s
-Batch build: 1.43s
+Sequential build: 4.64s
+Batch build: 1.50s
+
+
 
 
 $ ./build_perf.exe 10_000_000 3 2
 
-Sequential build: 4.91s
-Batch build: 1.59s
+Sequential build: 4.79s
+Batch build: 0.86s
+
+
 
 
 $ ./build_perf.exe 10_000_000 3 4
 
-Sequential build: 4.95s
-Batch build: 0.94s
+Sequential build: 4.85s
+Batch build: 0.59s
+
+
 
 
 $ ./build_perf.exe 10_000_000 3 6
 
-Sequential build: 5.20s
-Batch build: 1.09s
+Sequential build: 5.11s
+Batch build: 0.61s
+
+
 
 $ ./build_perf.exe 10_000_000 3 8
 
-Sequential build: 5.35s
-Batch build: 1.33s
+Sequential build: 5.24s
+Batch build: 0.68s
+
+
 
