@@ -40,7 +40,7 @@ let rec par_search_node : Domainslib.Task.pool ->
 let par_search ~pool (t: 'a t) ks =
   (* keys is a array of (key, index) where index is the position in the original search query *)
   let keys = Array.mapi (fun ind ks -> (ks, ind)) ks in
-  Array.sort (fun (k, _) (k', _) -> Int.compare k k') keys;
+  Array.fast_sort (fun (k, _) (k', _) -> Int.compare k k') keys;
   (* allocate a buffer for the results *)
   let results: 'a option array = Array.make (Array.length ks) None in
   Domainslib.Task.run pool
@@ -170,7 +170,7 @@ let[@warning "-27"] build_aux t pool (batch : (int * 'a) array) : 'a node =
                    leaf= false;
                    children= Array.make n_keys nil;
                    no_elements = hi-lo } in
-      if sz < ((2*t) ** 8) then 
+      if sz < 512 then 
         begin
           for i = 0 to (n_keys-1) do
             let rstart, rstop = range.(i) in
@@ -217,6 +217,34 @@ let flatten t =
     end
   in
   aux t.root
+
+let[@warning "-32"] par_flatten t pool =
+  let sz = t.root.no_elements in
+  assert(sz > 0);
+  let kv_arr = Array.make sz (0, t.root.values.(0)) in
+  let rec aux node lo =
+    if node.leaf then
+      for i = 0 to node.n - 1 do 
+        Printf.printf "Filling up %d in slotid %d\n" node.keys.(i) (lo+i);
+        kv_arr.(lo+i) <- (node.keys.(i), node.values.(i))
+      done
+    else begin
+      Domainslib.Task.parallel_for pool ~start:0 ~finish:(node.n)
+        ~body:(fun i -> 
+            let lo = ref lo in
+            for j = 0 to i-1 do
+              lo := !lo + node.children.(j).no_elements
+            done;
+            let islot = !lo + node.children.(i).no_elements in
+            Printf.printf "islot = %d\n" islot;
+            if i < node.n then 
+              kv_arr.(islot) <- node.keys.(i), node.values.(i);
+            aux node.children.(i) (!lo)
+          )
+    end
+  in
+  aux t.root 0;
+  kv_arr
 
 let merge_l l1 l2 =
   let rec walk l1 l2 acc =
@@ -282,11 +310,10 @@ let par_rebuild ~pool (t: 'a t) (kv_arr : (int * 'a) array) =
    3. Work on figuring out the invariant for reasoning about BTree inserts
    - Ensure that the tree does not need grow more than 1 level. If it does, we rebuild
    - At each node we split min(children, batch_size)
-
-   *)
+*)
 let par_insert_rebuilder ~pool t kv_arr =
   let batch_size = Array.length kv_arr in
   if batch_size >= t.root.no_elements then
     t.root <- par_rebuild ~pool t kv_arr
   else
-    Array.iter (fun (k,v) -> insert t k v) kv_arr
+    Array.iter (fun (k,v) -> insert t k v) kv_arr;

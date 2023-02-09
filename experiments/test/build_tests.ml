@@ -15,4 +15,8 @@ let test_correctness () =
 let () = 
   let res = test_correctness () in
   T.teardown_pool pool;
+  for _ = 0 to 1000 do
+    let rdm = Random.int 1000000000 in
+    Btree.insert t rdm "" 
+  done;
   assert(res)

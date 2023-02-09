@@ -9,7 +9,7 @@
  (modules batch_para_btree))
 
 (executables
- (names seq_btree ib_btree_two bop_lin)
+ (names seq_btree bop_lin)
  (libraries btree batch_para_btree domainslib unix qcheck-lin.domain)
  (preprocess
   (pps ppx_deriving.show))
@@ -22,7 +22,7 @@
   utils
   bop_lin))
 
-(library
+(executable
  (name ib_btree)
  (libraries batch_para_btree domainslib unix)
  (modules ib_btree))

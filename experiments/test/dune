@@ -8,10 +8,10 @@
  (libraries batch_para_btree domainslib unix)
  (modules build_perf rebuild_perf perf_utils))
 
-(executable
- (name build_tests)
+(executables
+ (names build_tests flatten_test)
  (libraries batch_para_btree domainslib)
- (modules build_tests))
+ (modules build_tests flatten_test))
 
 (cram
  (deps ./btree_tester.exe))

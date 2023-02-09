@@ -8,11 +8,14 @@ let max_rdm_int = (Int.shift_left 1 30) - 1
 let max_keys = (try Sys.argv.(1) with _  -> "3") |> int_of_string
 let insert_size = (try Sys.argv.(2) with _  -> "1_000_000") |> int_of_string
 let factor = (try Sys.argv.(3) with _ -> "10") |> int_of_string
-let num_domains = ((try Sys.argv.(3) with _  -> "7") |> int_of_string) - 1
+let num_domains = ((try Sys.argv.(4) with _  -> "8") |> int_of_string) - 1
 let preset_elems = Array.init insert_size 
     (fun _ -> let rdm = Random.int max_rdm_int in rdm, "key " ^ string_of_int rdm)
-let additional =  Array.init (insert_size * factor)
+let[@warning "-32"] additional = Array.init (insert_size * factor)
     (fun _ -> let rdm = Random.int max_rdm_int in rdm, "key " ^ string_of_int rdm)
+(* 
+let additional = Array.init (insert_size * factor)
+    (fun i -> i, "key" ^ string_of_int i) *)
 
 let init () = 
   let t = Btree.create ~max_keys () in
