@@ -6,3 +6,6 @@ one :
 
 two :
 	dune exec -- ./ib_btree_two.exe
+
+perf :
+	dune exec -- ./ib_btree_perf.exe

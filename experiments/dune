@@ -4,25 +4,33 @@
  (modules btree))
 
 (library
+ (name btree_validator)
+ (libraries btree)
+ (modules btree_validator))
+
+(library
  (name batch_para_btree)
  (libraries domainslib btree seq)
  (modules batch_para_btree))
 
-(executables
- (names seq_btree bop_lin)
- (libraries btree batch_para_btree domainslib unix qcheck-lin.domain)
- (preprocess
-  (pps ppx_deriving.show))
+(library
+ (name ib_btree)
+ (libraries batch_para_btree btree_validator domainslib unix)
  (modules
-  seq_btree
-  ib_btree_one
-  ib_btree_one_flipped
-  ib_btree_one_bad
-  ib_btree_two
-  utils
-  bop_lin))
+  ib_btree
+  ib_btree_seq
+  ib_btree_seq_flipped
+  ib_btree_seq_bad
+  ib_btree_par))
 
 (executable
- (name ib_btree)
- (libraries batch_para_btree domainslib unix)
- (modules ib_btree))
+ (name bop_lin)
+ (libraries btree ib_btree batch_para_btree domainslib unix)
+ (preprocess
+  (pps ppx_deriving.show))
+ (modules bop_lin))
+
+(executable
+ (name ib_btree_perf)
+ (libraries ib_btree btree)
+ (modules ib_btree_perf utils))

@@ -66,20 +66,3 @@ module ImpBatchedBtree(V : V) = struct
   let search t i = batchify t (Search i)
   let insert t k v = batchify t (Insert (k, v))
 end
-
-
-(* Main program *)
-let inserts = 1_000_000
-let main pool () =
-  let module S_Btree = ImpBatchedBtree(String) in
-  let t = S_Btree.create pool in
-  T.parallel_for pool ~start:1 ~finish:inserts ~body:(fun i ->
-      let value = "key" ^ string_of_int i in
-      S_Btree.insert t i value
-    );
-  assert (S_Btree.search t (inserts/2) |> Option.is_some)
-
-let () = 
-  let pool = Task.setup_pool ~num_domains:7 () in
-  Utils.time (fun () -> Task.run pool (main pool));
-  Task.teardown_pool pool

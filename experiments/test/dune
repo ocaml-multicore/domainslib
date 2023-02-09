@@ -10,7 +10,7 @@
 
 (executables
  (names build_tests flatten_test)
- (libraries batch_para_btree domainslib)
+ (libraries batch_para_btree domainslib btree_validator)
  (modules build_tests flatten_test))
 
 (cram

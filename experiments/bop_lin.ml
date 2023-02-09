@@ -14,7 +14,7 @@
 
 *)
 
-module ExBatchedBtree = Ib_btree_one.ExBatchedBtree(String)
+module ExBatchedBtree = Ib_btree.Seq.ExBatchedBtree(String)
 module SeqBtree = Btree
 
 type [@warning "-37"] op = 
