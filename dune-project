@@ -2,6 +2,7 @@
 (name domainslib)
 (formatting disabled)
 (generate_opam_files true)
+(cram enable)
 
 (source (github ocaml-multicore/domainslib))
 (authors "KC Sivaramakrishnan <kc@kcsrk.info>")
@@ -15,6 +16,8 @@
  (depends
   (ocaml (>= "5.0"))
   (lockfree (>= "0.2.0"))
+  iter
+  batteries
   (mirage-clock-unix (and :with-test (>= "4.2.0")))
   (qcheck-core (and :with-test (>= "0.20")))
   (qcheck-multicoretests-util (and :with-test (>= "0.1")))

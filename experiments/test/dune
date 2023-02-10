@@ -1,0 +1,20 @@
+(executable
+ (name btree_tester)
+ (libraries btree batch_para_btree ib_btree)
+ (modules btree_tester))
+
+(executables
+ (names build_perf rebuild_perf)
+ (libraries batch_para_btree domainslib unix)
+ (modules build_perf rebuild_perf perf_utils))
+
+(executables
+ (names build_tests flatten_test)
+ (libraries batch_para_btree domainslib btree_validator)
+ (modules build_tests flatten_test))
+
+(cram
+ (deps ./btree_tester.exe))
+
+(cram
+ (deps ./build_perf.exe ./rebuild_perf.exe))

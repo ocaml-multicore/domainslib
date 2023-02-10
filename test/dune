@@ -4,6 +4,39 @@
  (modules test_chan)
  (modes native))
 
+(executable
+ (name imp_bcounter)
+ (libraries domainslib unix)
+ (modules imp_bcounter))
+
+(executable
+ (name lazy_slist)
+ (libraries batteries domainslib)
+ (modules lazy_slist)
+ (modes native))
+
+(executables
+ (names
+  bench_mpmc_queue
+  test_batch_counting
+  bench_counters
+  test_batch_inserts
+  bench_slist
+  imp_bslist)
+ (libraries domainslib unix batteries)
+ (modules
+  util
+  mpmc_queue
+  bench_mpmc_queue
+  counters
+  test_batch_counting
+  bench_counters
+  slist
+  test_batch_inserts
+  bench_slist
+  imp_bslist)
+ (modes native))
+
 (test
  (name fib)
  (modules fib)
@@ -35,10 +68,10 @@
 (test
  (name LU_decomposition_multicore)
  (libraries domainslib)
- (flags (:standard -runtime-variant d))
+ (flags
+  (:standard -runtime-variant d))
  (modules LU_decomposition_multicore)
  (modes native))
-
 
 (test
  (name spectralnorm2)
@@ -46,10 +79,10 @@
  (modes native))
 
 (test
-  (name sum_par)
-  (libraries domainslib)
-	(modules sum_par)
-	(modes native))
+ (name sum_par)
+ (libraries domainslib)
+ (modules sum_par)
+ (modes native))
 
 (test
  (name task_throughput)
@@ -116,20 +149,35 @@
 (test
  (name task_one_dep)
  (modules task_one_dep)
- (libraries qcheck-multicoretests-util qcheck-core qcheck-core.runner domainslib)
- (action (run %{test} --verbose)))
+ (libraries
+  qcheck-multicoretests-util
+  qcheck-core
+  qcheck-core.runner
+  domainslib)
+ (action
+  (run %{test} --verbose)))
 
 (test
  (name task_more_deps)
  (modules task_more_deps)
- (libraries qcheck-multicoretests-util qcheck-core qcheck-core.runner domainslib)
- (action (run %{test} --verbose)))
+ (libraries
+  qcheck-multicoretests-util
+  qcheck-core
+  qcheck-core.runner
+  domainslib)
+ (action
+  (run %{test} --verbose)))
 
 (test
  (name task_parallel)
  (modules task_parallel)
- (libraries qcheck-multicoretests-util qcheck-core qcheck-core.runner domainslib)
- (action (run %{test} --verbose)))
+ (libraries
+  qcheck-multicoretests-util
+  qcheck-core
+  qcheck-core.runner
+  domainslib)
+ (action
+  (run %{test} --verbose)))
 
 ;; STM_sequential and STM_domain test of Domainslib.Chan
 
@@ -137,4 +185,10 @@
  (name chan_stm_tests)
  (modules chan_stm_tests)
  (libraries qcheck-stm.sequential qcheck-stm.domain domainslib)
- (action (run %{test} --verbose)))
+ (action
+  (run %{test} --verbose)))
+
+(env
+ (dev
+  (flags
+   (:standard -w -32))))
