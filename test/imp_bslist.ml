@@ -1,10 +1,8 @@
 open Domainslib
 module BatchedSlist (V : Slist.Comparable) = struct
   module VSL = Slist.Make(V)
-  type t = {
-    pool : Task.pool;
-    slist : VSL.t
-  }
+  type t = VSL.t
+
   type _ batch_op =
     | Ins : V.t -> unit batch_op
     (* We can even add sequential operations into our batchedDS *)
@@ -14,19 +12,19 @@ module BatchedSlist (V : Slist.Comparable) = struct
 
   type wrapped_batch_op = Batched_op : 'a batch_op * ('a -> unit) -> wrapped_batch_op
 
-  let create pool = {pool; slist = VSL.make ~size:max_int ()}
-  let bop t op_arr num =
-    let size = VSL.size t.slist in
+  let create = VSL.make ~size:max_int
+  let bop t pool op_arr num =
+    let size = VSL.size t in
     let inserts = Array.make num None in
     let i = ref 0 in
     Array.iter (function 
         | Batched_op (Ins elt, set) -> set (); inserts.(!i) <- Some elt; incr i
-        | Batched_op (Search elt, set) -> set @@ VSL.search t.slist elt 
+        | Batched_op (Search elt, set) -> set @@ VSL.search t elt 
         | Batched_op (Size, set) -> set size
-        | Batched_op (Print, set) -> set (); VSL.print_slist t.slist
+        | Batched_op (Print, set) -> set (); VSL.print_slist t
       ) op_arr;
     let inserts = Array.sub inserts 0 !i |> Array.map (Option.get) in
-    VSL.par_insert t.slist t.pool inserts
+    VSL.par_insert t pool inserts
 
 end
 

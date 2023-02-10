@@ -17,7 +17,7 @@ let rec size_node node =
   if node.leaf
   then Array.length node.values
   else Array.fold_left (fun acc vl -> acc + size_node vl) 0 node.children
-  
+
 let rec pp_node ?(pp_child=true) indent f fmt node =
   let spaces = (String.make indent ' ') in
   Format.fprintf fmt "%snode(n=%d,leaf=%b,no_elts=%d)\n%s - values=[%a]\n%a"
@@ -27,18 +27,18 @@ let rec pp_node ?(pp_child=true) indent f fmt node =
     (List.init node.n (fun i -> (node.keys.(i), node.values.(i))))
     (if pp_child then
        Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt "\n")
-       (fun fmt (k, vl) ->
-          match k with
-          | None -> Format.fprintf fmt "%s - child(k=_):\n%a" spaces (pp_node (indent + 4) f) vl
-          | Some key -> Format.fprintf fmt "%s - child(k=%d):\n%a" spaces key (pp_node (indent + 4) f) vl
-       )
-    else fun _fmt _vl -> ())
+         (fun fmt (k, vl) ->
+            match k with
+            | None -> Format.fprintf fmt "%s - child(k=_):\n%a" spaces (pp_node (indent + 4) f) vl
+            | Some key -> Format.fprintf fmt "%s - child(k=%d):\n%a" spaces key (pp_node (indent + 4) f) vl
+         )
+     else fun _fmt _vl -> ())
     (List.init (Array.length node.children) (fun i -> ((if i < node.n then Some node.keys.(i) else None), node.children.(i))))
 let pp_node_internal = pp_node
 let pp_node f fmt vl = pp_node 0 f fmt vl
 let show_node f vl = Format.asprintf "%a" (pp_node f) vl
 let show_node_no_children f vl = Format.asprintf "%a" (pp_node_internal ~pp_child:false 0 f) vl
-  
+
 let pp f fmt t =
   pp_node f fmt t.root
 let show f vl = Format.asprintf "%a" (pp f) vl
@@ -58,9 +58,9 @@ let create ?(max_keys=3) () =
 let rec search_node x k =
   let index = Iter.int_range ~start:0 ~stop:(x.n - 1)
               |> Iter.find (fun i ->
-                if k <= x.keys.(i)
-                then Some i
-                else None)
+                  if k <= x.keys.(i)
+                  then Some i
+                  else None)
               |> Option.value ~default:x.n in
   if index < x.n && x.keys.(index) = k
   then Some (x, index)
@@ -74,56 +74,6 @@ let search t k =
   | Some (node, i) -> Some node.values.(i)
   | None -> None
 
-let rec par_search_node : Domainslib.Task.pool ->
-  'a node -> keys:(int * int) array -> results:'a option array -> range:(int * int)
-  -> unit =
-  fun pool node ~keys ~results ~range:(rstart, rstop) ->
-  (* if the no elements in the node are greater than the number of keys we're searching for, then just do normal search in parallel *)
-  if node.no_elements > (rstop - rstart) && false then
-    Domainslib.Task.parallel_for pool ~start:rstart ~finish:(rstop - 1) ~body:(fun i ->
-      let (k,ind) = keys.(i) in
-      results.(ind) <- Option.map (fun (node,i) -> node.values.(i)) (search_node node k)
-    )
-  else begin
-    let handle_equal_keys ki i =
-      if i < node.n && fst keys.(ki) = node.keys.(i) then 
-        results.(snd keys.(ki)) <- Some node.values.(i) in
-    (* partition children by index they belong to  *)
-    let children =
-      Iter.int_range ~start:rstart ~stop:(rstop - 1)
-      |> Iter.fold (fun (acc, ks, i) ki ->
-        (* ks - the start of the current index, i - the current key of the node we're checking   *)
-        (* if we haven't handled all keys  *)
-        if i < node.n then begin
-          let acc, ks, i = if fst keys.(ki) <= node.keys.(i)
-            then (acc, ks, i) 
-            else ((ks, ki) :: acc, ki, i + 1) in
-          handle_equal_keys ki i;
-          (acc,ks,i)
-        end else (acc, ks, i)
-      ) ([], rstart, 0)
-      |> (fun (acc, ks, _) -> (ks,rstop) :: acc)
-      |> List.rev
-      |> Array.of_list in
-
-    if not node.leaf then
-      Domainslib.Task.parallel_for pool ~start:0 ~finish:(Array.length children - 1) ~body:(fun i ->
-        par_search_node pool node.children.(i) ~keys ~results ~range:children.(i)
-      );
-  end
-
-let par_search ~pool (t: 'a t) ks =
-
-  (* keys is a array of (key, index) where index is the position in the original search query *)
-  let keys = Array.mapi (fun ind ks -> (ks, ind)) ks in
-  Array.sort (fun (k, _) (k', _) -> Int.compare k k') keys;
-  (* allocate a buffer for the results *)
-  let results: 'a option array = Array.make (Array.length ks) None in
-  Domainslib.Task.run pool
-  (fun () -> par_search_node pool t.root ~keys ~results ~range:(0, Array.length keys));
-
-  results
-
 let make_safe i vl =
   if i <= 0 then [| |] else Array.make i (vl ())
 
@@ -134,11 +84,10 @@ let resize_node y t =
   y.no_elements <- (t - 1);
   if not y.leaf then begin
     y.children <- Array.init t (fun j ->
-      y.no_elements <- y.no_elements + y.children.(j).no_elements;
-      y.children.(j)
-    );
+        y.no_elements <- y.no_elements + y.children.(j).no_elements;
+        y.children.(j)
+      );
   end
-
 
 (* pre: x.(i) has (2 * t - 1) keys *)
 let split_child x i =
@@ -156,20 +105,20 @@ let split_child x i =
   Array.iter (fun child -> z.no_elements <- z.no_elements + child.no_elements) z.children;
   (* update x *)
   x.keys <- Array.init (x.n + 1) (fun j ->
-    if j < i then x.keys.(j)
-    else if j = i then y.keys.(t - 1)
-    else x.keys.(j - 1)
-  );
+      if j < i then x.keys.(j)
+      else if j = i then y.keys.(t - 1)
+      else x.keys.(j - 1)
+    );
   x.values <- Array.init (x.n + 1) (fun j ->
-    if j < i then x.values.(j)
-    else if j = i then y.values.(t - 1)
-    else x.values.(j - 1)
-  );
+      if j < i then x.values.(j)
+      else if j = i then y.values.(t - 1)
+      else x.values.(j - 1)
+    );
   x.children <- Array.init (x.n + 2) (fun j ->
-    if j <= i then x.children.(j)
-    else if j = i + 1 then z
-    else x.children.(j - 1)
-  );
+      if j <= i then x.children.(j)
+      else if j = i + 1 then z
+      else x.children.(j - 1)
+    );
   x.n <- x.n + 1;
   (* clip y *)
   resize_node y t
@@ -183,17 +132,17 @@ let rec insert_node ~max_size x k vl =
   if x.leaf
   then begin
     x.keys <- Array.init (x.n + 1) (fun i ->
-      if i < index
-      then x.keys.(i)
-      else if i = index then k
-      else x.keys.(i - 1)
-    );
+        if i < index
+        then x.keys.(i)
+        else if i = index then k
+        else x.keys.(i - 1)
+      );
     x.values <- Array.init (x.n + 1) (fun i ->
-      if i < index
-      then x.values.(i)
-      else if i = index then vl
-      else x.values.(i - 1)
-    );
+        if i < index
+        then x.values.(i)
+        else if i = index then vl
+        else x.values.(i - 1)
+      );
     x.n <- x.n + 1;
   end else begin
     if x.children.(index).n = 2 * max_size - 1
@@ -225,4 +174,3 @@ let insert tree k vl =
     insert_node ~max_size:tree.max_keys s k vl
   end else
     insert_node ~max_size:tree.max_keys r k vl
-

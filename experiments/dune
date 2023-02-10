@@ -1,6 +1,36 @@
 (library
  (name btree)
  (libraries iter domainslib)
- (inline_tests)
+ (modules btree))
+
+(library
+ (name btree_validator)
+ (libraries btree)
+ (modules btree_validator))
+
+(library
+ (name batch_para_btree)
+ (libraries domainslib btree seq)
+ (modules batch_para_btree))
+
+(library
+ (name ib_btree)
+ (libraries batch_para_btree btree_validator domainslib unix)
+ (modules
+  ib_btree
+  ib_btree_seq
+  ib_btree_seq_flipped
+  ib_btree_seq_bad
+  ib_btree_par))
+
+(executable
+ (name bop_lin)
+ (libraries btree ib_btree batch_para_btree domainslib unix)
  (preprocess
-  (pps ppx_inline_test)))
+  (pps ppx_deriving.show))
+ (modules bop_lin))
+
+(executable
+ (name ib_btree_perf)
+ (libraries ib_btree btree)
+ (modules ib_btree_perf utils))
