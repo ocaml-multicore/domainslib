@@ -216,38 +216,33 @@ let find_height ~t ~no_elts =
     loop t no_elts 1 t (2 * t)
 
 let find_split ~t ~h r =
+  let max_t = 2 * t in
   let min_size = int_pow t (h - 1) - 1 in
-  let max_children = int_pow (2 * t) (h - 1) - 1 in
-  let rec loop min_size max_children t =
+  let max_size = int_pow (2 * t) (h - 1) - 1 in
+  let rec loop min_size max_size t =
+    assert (t <= max_t);
     let elt_size = Int.div (r - t + 1) t in
     let rem_size = Int.rem (r - t + 1) elt_size in
-    if min_size <= elt_size && elt_size <= max_children &&
-       (rem_size = 0 ||
-        (min_size <= rem_size && rem_size <= max_children) ||
-        (min_size <= elt_size + rem_size && elt_size + rem_size <= max_children))
-    then elt_size
-    else loop min_size max_children (t + 1) in
-  loop min_size max_children t
+    if min_size <= elt_size && elt_size <= max_size &&
+       (rem_size = 0 || elt_size + 1 <= max_size)
+    then (t, elt_size, rem_size)
+    else loop min_size max_size (t + 1) in
+  loop min_size max_size t
 
 let partition_range ~t ~h (start,stop) =
-  let sub_range_size = find_split ~t ~h (stop - start) in
-  let rec loop acc sub_range_size start stop =
-    if start + sub_range_size >= stop || start + 2 * sub_range_size > stop
-    then (-1, stop) :: acc
-    else loop ((start + sub_range_size, start + sub_range_size) :: acc)
-           sub_range_size
-           (start + sub_range_size + 1) stop in
-  List.rev (loop [] sub_range_size start stop)
-
-let partition_root ~t ~h (start,stop) =
-  assert (h > 0);
-  let t_h = int_pow t h in
-  let min_elts = 2 * t_h - 1 in
-  let rec loop t_h min_elts acc (start,stop) =
-    if stop - start < min_elts
-    then (stop :: acc)
-    else loop t_h min_elts (start + t_h :: acc) (start + t_h, stop) in
-  List.rev (loop t_h min_elts [] (start,stop))
+  let t, sub_range_size, rem = find_split ~t ~h (stop - start) in
+  let key_inds = Array.make (t - 1) 0 in
+  let child_inds = Array.make t 0 in
+  let rem = ref rem in
+  let start = ref start in
+  for i = 0 to t - 1 do
+    let rem_comp = if !rem > 0 then (decr rem; 1) else 0 in
+    child_inds.(i) <- min (!start + sub_range_size + rem_comp) stop;
+    if i < t - 1 then
+      key_inds.(i) <- !start + sub_range_size + rem_comp;
+    start := !start + sub_range_size + rem_comp + 1;
+  done;
+  key_inds, child_inds
 
 let rec build_node ~max_children:t ~h start stop arr =
   if h <= 1
@@ -260,17 +255,19 @@ let rec build_node ~max_children:t ~h start stop arr =
     no_elements=stop - start;
   }
   else
-    let key_inds, sub_ranges = partition_range ~t ~h (start,stop) |> List.split in
-    let key_inds = drop_last key_inds in
-    let _, children = fold_left_map (fun start stop ->
-      let subtree = build_node ~max_children:t ~h:(h - 1) start stop arr in
-      stop + 1, subtree
-    ) start sub_ranges in
-    let children = Array.of_list children in
-    let n = List.length key_inds in
+    let key_inds, sub_ranges = partition_range ~t ~h (start,stop) in
+
+    let children =
+      let start = ref start in
+      Array.map (fun stop ->
+        let subtree = build_node ~max_children:t ~h:(h - 1) !start stop arr in
+        start := (stop + 1);
+        subtree
+      ) sub_ranges in
+    let n = Array.length key_inds in
     let keys = Array.make n 0 in
     let values = Array.make n (snd arr.(start)) in
-    List.iteri (fun pos i ->
+    Array.iteri (fun pos i ->
       keys.(pos) <- fst arr.(i);
       values.(pos) <- snd arr.(i);
     ) key_inds;
@@ -289,18 +286,19 @@ let build_from ?max_children:(t=3) arr =
     if Array.length arr <= 2 * t - 1
     then build_node ~max_children:t ~h:1 0 (Array.length arr) arr
     else
-      let sub_ranges = partition_root ~t ~h:(h - 1) (0,(Array.length arr)) in
-      let _, children = List.fold_left_map (fun start stop ->
-        let subtree = build_node ~max_children:t ~h:(h - 1) start (stop - 1) arr in
-        stop, (stop - 1, subtree)
-      ) 0 sub_ranges in
-      let key_inds, children = List.split children in
-      let key_inds = drop_last key_inds in
-      let children = Array.of_list children in
-      let n = List.length key_inds in
+      let key_inds, sub_ranges = partition_range ~t ~h (0,(Array.length arr)) in
+
+      let children =
+        let start = ref 0 in
+        Array.map (fun stop ->
+          let subtree = build_node ~max_children:t ~h:(h - 1) !start stop arr in
+          start := stop + 1;
+          subtree
+        ) sub_ranges in
+      let n = Array.length key_inds in
       let keys = Array.make n 0 in
       let values = Array.make n (snd arr.(0)) in
-      List.iteri (fun pos i ->
+      Array.iteri (fun pos i ->
         keys.(pos) <- fst arr.(i);
         values.(pos) <- snd arr.(i);
       ) key_inds;
@@ -309,4 +307,3 @@ let build_from ?max_children:(t=3) arr =
     root;
     max_children=t
   }
-
