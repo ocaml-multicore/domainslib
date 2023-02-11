@@ -281,6 +281,7 @@ let rec build_node ~max_children:t ~h start stop arr =
     }
 
 let build_from ?max_children:(t=3) arr =
+  Array.sort (fun (k1, _) (k2,_) -> Int.compare k1 k2) arr;
   let h = find_height ~t ~no_elts:(Array.length arr) in
   let root =
     if Array.length arr <= 2 * t - 1
