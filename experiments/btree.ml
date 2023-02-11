@@ -215,7 +215,7 @@ let find_height ~t ~no_elts =
         else loop t no_elts (h+1) t_h_1 t2_h_1 in
     loop t no_elts 1 t (2 * t)
 
-let find_split ~t ~h r =
+let find_split ?(root=false) ~t ~h r =
   let max_t = 2 * t in
   let min_size = int_pow t (h - 1) - 1 in
   let max_size = int_pow (2 * t) (h - 1) - 1 in
@@ -227,10 +227,10 @@ let find_split ~t ~h r =
        (rem_size = 0 || elt_size + 1 <= max_size)
     then (t, elt_size, rem_size)
     else loop min_size max_size (t + 1) in
-  loop min_size max_size t
+  loop min_size max_size (if root then 2 else t)
 
-let partition_range ~t ~h (start,stop) =
-  let t, sub_range_size, rem = find_split ~t ~h (stop - start) in
+let partition_range ?root ~t ~h (start,stop) =
+  let t, sub_range_size, rem = find_split ?root ~t ~h (stop - start) in
   let key_inds = Array.make (t - 1) 0 in
   let child_inds = Array.make t 0 in
   let rem = ref rem in
@@ -286,7 +286,7 @@ let build_from ?max_children:(t=3) arr =
     if Array.length arr <= 2 * t - 1
     then build_node ~max_children:t ~h:1 0 (Array.length arr) arr
     else
-      let key_inds, sub_ranges = partition_range ~t ~h (0,(Array.length arr)) in
+      let key_inds, sub_ranges = partition_range ~root:true ~t ~h (0,(Array.length arr)) in
 
       let children =
         let start = ref 0 in
