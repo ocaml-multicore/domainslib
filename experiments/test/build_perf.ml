@@ -11,7 +11,7 @@ let test_seq_insert _pool () =
 
 let test_build _pool () =
   let elems = Array.init insert_size (fun i -> i,i) in
-  let t = Btree.build_from ~max_children elems in
+  let t = Btree.build_from_sorted ~max_children elems in
   t
 
 let () = 

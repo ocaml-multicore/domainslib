@@ -101,7 +101,7 @@ let () =
     let pool = Domainslib.Task.setup_pool ~num_domains:num_domains () in
     (* let btree =  *)
     (*   Domainslib.Task.run pool (fun () -> Batch_para_btree.build ~max_children pool keys_vals) in *)
-    let btree = Btree.build_from ~max_children keys_vals in
+    let btree = Btree.build_from_sorted ~max_children keys_vals in
     dump_btree fname btree;
     print_btree btree;
     Domainslib.Task.teardown_pool pool
