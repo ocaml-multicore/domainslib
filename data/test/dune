@@ -1,0 +1,4 @@
+(executable (name finite_vector_tester)
+ (libraries data))
+
+(cram (deps ./finite_vector_tester.exe))
