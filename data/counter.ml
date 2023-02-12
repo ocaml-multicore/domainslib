@@ -1,5 +1,3 @@
-module Q = Mpmc_queue
-
 module Sequential = struct
 
   type t = { mutable counter: int }
