@@ -15,8 +15,8 @@ let () =
     let btree: string Btree.t = Btree.create () in
     dump_btree fname btree
   | ["init"; fname; max_size] ->
-    let max_keys = int_of_string max_size in
-    let btree: string Btree.t = Btree.create ~max_keys () in
+    let max_children = int_of_string max_size in
+    let btree: string Btree.t = Btree.create ~max_children () in
     dump_btree fname btree
   | ["print"; fname] ->
     let tree = read_btree fname in
@@ -90,8 +90,8 @@ let () =
     print_btree btree;
     dump_btree fname btree;
     Domainslib.Task.teardown_pool pool
-  | "build":: fname :: max_keys :: keys :: (([] | [_])  as rest) ->
-    let max_keys = int_of_string max_keys in
+  | "build":: fname :: max_children :: keys :: (([] | [_])  as rest) ->
+    let max_children = int_of_string max_children in
     let keys = String.split_on_char ',' keys |> List.map int_of_string |> Array.of_list in
     let keys_vals = Array.map (fun k -> (k, "key " ^ string_of_int k)) keys in
     let num_domains = match rest with
@@ -99,8 +99,9 @@ let () =
       | domains_count :: _ -> int_of_string domains_count
     [@@alert "-unstable"] in
     let pool = Domainslib.Task.setup_pool ~num_domains:num_domains () in
-    let btree = 
-      Domainslib.Task.run pool (fun () -> Batch_para_btree.build ~max_keys pool keys_vals) in
+    (* let btree =  *)
+    (*   Domainslib.Task.run pool (fun () -> Batch_para_btree.build ~max_children pool keys_vals) in *)
+    let btree = Btree.build_from_sorted ~max_children keys_vals in
     dump_btree fname btree;
     print_btree btree;
     Domainslib.Task.teardown_pool pool

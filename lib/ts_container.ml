@@ -4,6 +4,8 @@ module ChanBased = struct
     size : int Atomic.t;
     batch_limit : int
   }
+
+  (* Change batch limit to (N)processes *)
   let create ?(batch_limit=max_int) () = 
     {
       chan = Chan.make_unbounded ();
@@ -18,7 +20,7 @@ module ChanBased = struct
     let limit = min batch_size t.batch_limit in
     let topup = max (batch_size - limit) 0 in
     let _ = Atomic.fetch_and_add t.size topup in
-    Array.init limit (fun _ -> Chan.recv t.chan), batch_size
+    Array.init limit (fun _ -> Chan.recv t.chan), limit
   let size t = Atomic.get t.size 
 end
 

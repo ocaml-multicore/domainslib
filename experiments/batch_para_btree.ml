@@ -57,7 +57,7 @@ let rec par_insert_node : Domainslib.Task.pool -> 'a node ->
   match rstop - rstart with
   | 1 ->
     let k,v = fst key_vals.(rstart) in
-    insert_node ~max_size:max_keys node k v
+    insert_node ~max_children:max_keys node k v
   (* | n when n >= node.no_elements -> failwith "Rebuild" *)
   | n -> assert(n > 0);
     begin
@@ -90,19 +90,117 @@ let rec par_insert_node : Domainslib.Task.pool -> 'a node ->
       else begin
         for i = rstart to rstop - 1 do
           let k,v = fst key_vals.(i) in
-          insert_node ~max_size:max_keys node k v
+          insert_node ~max_children:max_keys node k v
         done
       end
     end
 
 let[@warning "-27"] par_insert ~pool (t: 'a t) (kv_arr : (int * 'a) array) =
   (* keys is a array of (key, index) where index is the position in the original search query *)
-  let max_keys = t.max_keys in
+  let max_keys = t.max_children in
   let key_vals = Array.mapi (fun ind (ks, v) -> ((ks,v), ind)) kv_arr in
   Array.sort (fun ((k,_), _) ((k',_), _) -> Int.compare k k') key_vals;
   (* allocate a buffer for the results *)
   Domainslib.Task.run pool
     (fun () -> par_insert_node pool t.root ~key_vals ~range:(0, Array.length key_vals) ~max_keys)
+
+let rec ( ** ) n e =
+  assert (e >= 0);
+  if e = 0 then 1 else n * (n ** (e - 1))
+
+(* Find the height of the tree given n *)
+let find_h h t n =
+  let rec aux h =
+    let min_elts = (t ** h) - 1 in
+    let max_elts = ((2*t) ** h) - 1 in
+    if n >= min_elts && n <= max_elts then h else aux (h+1)
+  in
+  aux h
+
+(* Find the subtree size and the number of children *)
+(* get_partitions lo hi branching_factor child_height *)
+let get_partitions lo hi t h =
+  (* let min_keys, max_keys = t - 1, 2 * t - 1 in *)
+  (* Printf.printf "Min keys = %d, Max keys = %d\n" min_keys max_keys; *)
+  let min_subtree, max_subtree = ((t ** h) - 1), ((2 * t) ** h) - 1 in
+  (* Printf.printf "min_subtree %d, max_subtree %d\n" min_subtree max_subtree; *)
+  let within_range v = (v >= min_subtree) && (v <= max_subtree) in
+  let sz = hi - lo in
+  let cont = ref true in
+  let subtree_sz = ref 0 in
+  let n_child = ref t in
+  while !cont do
+    (* Printf.printf "n_child = %d, max_child = %d\n" !n_child (2 * t); *)
+    assert (!n_child <= 2 * t);
+    subtree_sz := (((sz + 1) / !n_child) - 1);
+    (* Printf.printf "Subtree Size = %d\n" !subtree_sz; *)
+    let rem = (sz - (!n_child - 1)) mod !n_child in
+    (* Printf.printf "Remainder = %d\n" rem; *)
+    if within_range !subtree_sz
+    && within_range (rem + !subtree_sz)
+    then cont := false
+    else incr n_child
+  done;
+  !subtree_sz, !n_child
+
+let calculate_range lo hi t h =
+  let subtree_sz, n_child = get_partitions lo hi t h in
+  Printf.printf "n_child = %d\n" n_child;
+  let ranges = Array.init n_child (fun i ->
+      (* Subtree_sz + 1 to accomodate the key *)
+      let start = lo + (i * (subtree_sz + 2)) in
+      let stop = start + subtree_sz + 1 in
+      (start, stop))
+  in
+  let (start,_) = ranges.(n_child - 1) in
+  ranges.(n_child - 1) <- (start, hi);
+  ranges, n_child - 1
+
+let[@warning "-32"] pp_range ppf (r : (int * int * int) array) =
+  let pp_triple ppf (f,s,t) =
+    Format.fprintf ppf "(%d, %d, %d)" f s t in
+  Format.pp_print_list pp_triple ppf (Array.to_list r)
+
+let[@warning "-27"] build_aux_2 t pool (batch : (int * 'a) array) : 'a node =
+  let nil = { n = 0; keys=[||]; values=[||]; leaf= true; children= [||]; no_elements= 0 } in
+  let rec aux lo hi h : 'a node =
+    if h = 1 then
+      begin
+        let sz = hi - lo in
+        Format.printf "sz = %d [Lo:%d, Hi:%d] LEAF%!\n" sz lo hi;
+        { n = sz;
+          keys=Array.init sz (fun i -> fst batch.(lo+i));
+          values=Array.init sz (fun i -> snd batch.(lo+i));
+          leaf = true;
+          children = [||];
+          no_elements= sz }
+      end
+    else begin
+      let ranges, n_keys = calculate_range lo hi t (h-1) in
+      (* Format.printf "[Lo:%d, Hi:%d] Range = %a\n%!" lo hi pp_range ranges; *)
+      let keys = Array.init n_keys (fun i ->
+          (* Printf.printf "%d index\n%!" i; *)
+          let idx = snd ranges.(i) in
+          fst batch.(idx)) in
+      let values = Array.init n_keys (fun i ->
+          let idx = snd ranges.(i) in
+          snd batch.(idx)) in
+      let node = { n = n_keys;
+                   keys;
+                   values;
+                   leaf= false;
+                   children= Array.make (n_keys+1) nil;
+                   no_elements = hi-lo } in
+      for i = 0 to n_keys do
+        let rstart, rstop = ranges.(i) in
+        node.children.(i) <- aux rstart rstop (h-1)
+      done;
+      node
+    end
+  in
+  let n = Array.length batch in
+  aux 0 n (find_h 0 t n)
+
 
 (* Ceiling division *)
 let ( ^/ ) i1 i2 =
@@ -132,8 +230,6 @@ let pp_range ppf (r : (int * int) array) =
    - Every internal node has at least t-1 keys => t children
    - Every node can contain at most 2t - 1 keys
 *)
-let rec ( ** ) n e =
-  if e < 1 then n else n * (n ** (e - 1));;
 
 let[@warning "-27"] build_aux t pool (batch : (int * 'a) array) : 'a node =
   let nil = { n = 0;
@@ -190,7 +286,7 @@ let[@warning "-27"] build_aux t pool (batch : (int * 'a) array) : 'a node =
 
 let build ~max_keys pool batch =
   let t = (max_keys + 1) / 2  in
-  {max_keys = max_keys + 1;  root = build_aux t pool batch}
+  {max_children = max_keys + 1;  root = build_aux_2 t pool batch}
 
 let rec int_range_downto start stop =
   fun () ->
@@ -294,7 +390,7 @@ let par_rebuild ~pool (t: 'a t) (kv_arr : (int * 'a) array) =
   if Array.length kv_arr = 0 then t.root
   else begin
     (* keys is a array of (key, index) where index is the position in the original search query *)
-    let max_keys = t.max_keys in
+    let max_keys = t.max_children in
     Array.sort (fun (k,_) (k',_) -> Int.compare k k') kv_arr;
     let batch = Array.make (Array.length kv_arr + t.root.no_elements) kv_arr.(0) in
     let i1 = kv_arr |> Array.to_seq in
