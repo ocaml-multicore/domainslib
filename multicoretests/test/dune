@@ -1,0 +1,41 @@
+;; Internal tests
+
+(test
+ (name util_print_test)
+ (modules util_print_test)
+ (package qcheck-multicoretests-util)
+ (libraries qcheck-multicoretests-util))
+
+
+(test
+ (name cleanup_lin)
+ (modules cleanup_lin)
+ (package qcheck-lin)
+ (libraries qcheck-lin.domain)
+ (preprocess (pps ppx_deriving.show ppx_deriving.eq))
+ (action (run ./%{test} --verbose)))
+
+(test
+ (name cleanup_stm)
+ (modules cleanup_stm)
+ (package qcheck-stm)
+ (libraries qcheck-stm.sequential qcheck-stm.domain)
+ (preprocess (pps ppx_deriving.show ppx_deriving.eq))
+ (action (run ./%{test} --verbose)))
+
+(rule
+ (enabled_if (= %{arch_sixtyfour} true))
+ (action (copy mutable_set_v5.expected.64 mutable_set_v5.expected)))
+
+(rule
+ (enabled_if (= %{arch_sixtyfour} false))
+ (action (copy mutable_set_v5.expected.32 mutable_set_v5.expected)))
+
+(test
+ (name mutable_set_v5)
+ (modules mutable_set_v5)
+ (package qcheck-stm)
+ (libraries qcheck-stm.sequential)
+ (preprocess (pps ppx_deriving.show))
+ (action
+  (with-accepted-exit-codes 1 (run ./%{test} --verbose --seed 229109553))))

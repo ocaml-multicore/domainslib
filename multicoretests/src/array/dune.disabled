@@ -1,0 +1,29 @@
+;; Test of the array library
+
+(test
+ (name stm_tests)
+ (modules stm_tests)
+ (package multicoretests)
+ (libraries qcheck-stm.sequential qcheck-stm.domain)
+ (preprocess (pps ppx_deriving.show))
+ (action (run %{test} --verbose))
+)
+
+(test
+ (name lin_tests)
+ (modules lin_tests)
+ (package multicoretests)
+ (flags (:standard -w -27))
+ (libraries qcheck-lin.domain)
+ (preprocess (pps ppx_deriving_qcheck ppx_deriving.show ppx_deriving.eq))
+ ; (action (run %{test} --verbose))
+ (action (echo "Skipping src/array/%{test} from the test suite\n\n"))
+)
+
+(test
+ (name lin_tests_dsl)
+ (modules lin_tests_dsl)
+ (package multicoretests)
+ (libraries qcheck-lin.domain)
+ (action (run %{test} --verbose))
+)
