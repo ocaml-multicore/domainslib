@@ -51,7 +51,7 @@ module Make (V: Map.OrderedType) = struct
       pp_node ?pp_v f fmt t.root
     let show ?pp_v f vl = Format.asprintf "%a" (pp ?pp_v f) vl
 
-    let create ?(max_children=3) () =
+    let init ?(max_children=3) () =
       let root = {
         n=0;
         leaf=true;
@@ -62,18 +62,27 @@ module Make (V: Map.OrderedType) = struct
       } in
       {root; max_children}
 
-    let rec find_int_range ~start ~stop f =
+    let rec fold_int_range ~start ~stop f acc =
       if start >= stop
-      then f start
+      then f acc start
+      else
+        let acc = f acc start in
+        fold_int_range ~start:(start + 1) ~stop f acc
+
+    let rec find_int_range ~start ~stop f =
+      if stop < start
+      then None
+      else if start = stop then f start
       else match f start with
         | None -> find_int_range ~start:(start + 1) ~stop f
         | res -> res 
 
     let rec find_int_range_dec ~start ~stop f =
-      if stop <= start
-      then f stop
-      else match f stop with
-        | None -> find_int_range_dec ~start ~stop:(stop - 1) f
+      if start < stop
+      then None
+      else if start = stop then f stop
+      else match f start with
+        | None -> find_int_range_dec ~start:(start - 1) ~stop f
         | res -> res
 
     let rec search_node x k =
@@ -117,7 +126,8 @@ module Make (V: Map.OrderedType) = struct
       y.n <- t - 1;
       Finite_vector.clip y.keys (t - 1);
       Finite_vector.clip y.values (t - 1);
-      Finite_vector.clip y.children t;
+      if not y.leaf then
+        Finite_vector.drop_last y.children;
       y.no_elements <- t - 1;
       Finite_vector.iter (fun child -> y.no_elements <- y.no_elements + child.no_elements) y.children;
 
@@ -126,7 +136,8 @@ module Make (V: Map.OrderedType) = struct
     let rec insert_node ~max_children x k vl =
       let index =
         find_int_range_dec ~start:(x.n - 1) ~stop:0 (fun i ->
-          if V.compare k x.keys.!(i) >= 0 then Some (i + 1) else None)
+          if V.compare k x.keys.!(i) >= 0
+          then Some (i + 1) else None)
         |> Option.value ~default:0 in
       x.no_elements <- x.no_elements + 1;
       if x.leaf
@@ -155,7 +166,7 @@ module Make (V: Map.OrderedType) = struct
           n=0;
           leaf=false;
           keys=Finite_vector.init ~capacity:(2 * t - 1) ();
-          children=Finite_vector.init ~capacity:(2 * t) ();
+          children=Finite_vector.singleton ~capacity:(2 * t) (tree.root);
           values=Finite_vector.init ~capacity:(2 * t - 1) ();
           no_elements=r.no_elements;
         } in
@@ -176,6 +187,7 @@ module Make (V: Map.OrderedType) = struct
 
   type 'a wrapped_op = Mk : ('a, 'b) op * ('b -> unit) -> 'a wrapped_op
 
+  let init () = Sequential.init ~max_children:8 ()
 
   let fold_left_map f accu l =
     let rec aux accu l_accu = function
@@ -305,6 +317,55 @@ module Make (V: Map.OrderedType) = struct
       root;
       max_children=t
     }
+
+
+  let rec par_search_node : Domainslib.Task.pool -> 'a Sequential.node ->
+    keys:(V.t * int) array -> results:'a option array -> range:(int * int)
+    -> unit =
+    fun pool node ~keys ~results ~range:(rstart, rstop) ->
+    (* if the no elements in the node are greater than the number of keys we're searching for, then just do normal search in parallel *)
+    if node.no_elements > (rstop - rstart) && false then
+      Domainslib.Task.parallel_for pool ~start:rstart ~finish:(rstop - 1) ~body:(fun i ->
+        let (k,ind) = keys.(i) in
+        results.(ind) <- Option.map (fun (node,i) -> node.Sequential.values.!(i)) (Sequential.search_node node k)
+      )
+    else begin
+      let handle_equal_keys ki i =
+        if i < node.n && fst keys.(ki) = node.keys.!(i) then
+          results.(snd keys.(ki)) <- Some node.values.!(i) in
+      (* partition children by index they belong to  *)
+      let children =
+        Sequential.fold_int_range ~start:rstart ~stop:(rstop - 1)
+          (fun (acc, ks, i) ki ->
+             (* ks - the start of the current index, i - the current key of the node we're checking   *)
+             (* if we haven't handled all keys  *)
+             if i < node.n then begin
+               let acc, ks, i = if fst keys.(ki) <= node.keys.!(i)
+                 then (acc, ks, i)
+                 else ((ks, ki) :: acc, ki, i + 1) in
+               handle_equal_keys ki i;
+               (acc,ks,i)
+             end else (acc, ks, i)
+          ) ([], rstart, 0)
+        |> (fun (acc, ks, _) -> (ks,rstop) :: acc)
+        |> List.rev
+        |> Array.of_list in
+      if not node.leaf then
+        Domainslib.Task.parallel_for pool ~start:0 ~finish:(Array.length children - 1) ~body:(fun i ->
+          par_search_node pool node.children.!(i) ~keys ~results ~range:children.(i)
+        );
+    end
+
+  let par_search ~pool (t: 'a t) ks =
+    (* keys is a array of (key, index) where index is the position in the original search query *)
+    let keys = Array.mapi (fun ind ks -> (ks, ind)) ks in
+    Array.fast_sort (fun (k, _) (k', _) -> V.compare k k') keys;
+    (* allocate a buffer for the results *)
+    let results: 'a option array = Array.make (Array.length ks) None in
+    Domainslib.Task.run pool
+      (fun () -> par_search_node pool t.root ~keys ~results ~range:(0, Array.length keys));
+    results
+
 
   let run (type a) (t: a t) (pool: Domainslib.Task.pool) (ops: a wrapped_op array) : unit =
     let searches : (V.t * (a option -> unit)) list ref = ref [] in

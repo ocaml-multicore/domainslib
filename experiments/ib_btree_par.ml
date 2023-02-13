@@ -2,27 +2,19 @@ open Domainslib
 module T = Domainslib.Task
 module Btree = Batch_para_btree
 
-module type V = sig
-  type t
-end
+module ExBatchedBtree = struct
 
-module ExBatchedBtree(V : V) = struct
+  type 'a t = 'a Btree.t 
+  type ('a, _) op = 
+    | Search : int -> ('a, 'a option) op
+    | Insert : int * 'a -> ('a, unit) op
 
-  type t = V.t Btree.t 
-  type _ batch_op = 
-    | Search : int -> V.t option batch_op
-    | Insert : int * V.t -> unit batch_op
+  type 'a wrapped_op = 
+      Mk : ('a, 'b) op * ('b -> unit) -> 'a wrapped_op
 
-  type wrapped_batch_op = 
-      Batched_op : 'a batch_op * ('a -> unit) -> wrapped_batch_op
-
-  let create () = Btree.create ()
+  let init () = Btree.create ()
 
   let batch_limit = 20
-  let insert_chan = Chan.make_bounded batch_limit
-  (* let search_chan = Chan.make_bounded batch_limit *)
-  let search_chan: ((V.t option T.promise) * (V.t option -> unit)) Chan.t = Chan.make_bounded batch_limit
-  let insert_batch : (int * V.t) option array = Array.make batch_limit None
   let populate arr chan =
     let i = ref 0 in
     while 
@@ -32,14 +24,19 @@ module ExBatchedBtree(V : V) = struct
     do ()
     done; !i
 
-  let bop : V.t Btree.t -> T.pool -> wrapped_batch_op array -> int -> unit = 
-    fun t pool bop_arr n ->
-    for i = 0 to n-1 do
-      match bop_arr.(i) with
-      | Batched_op (Search key, set) -> 
+  let run : 'a Btree.t -> T.pool -> 'a wrapped_op array -> unit = 
+    fun (type a) (t: a Btree.t) pool (bop_arr: a wrapped_op array) ->
+    let insert_chan = Chan.make_bounded batch_limit in
+    (* let search_chan = Chan.make_bounded batch_limit *)
+    let search_chan: ((a option T.promise) * (a option -> unit)) Chan.t =
+      Chan.make_bounded batch_limit in
+    let insert_batch : (int * 'a) option array = Array.make batch_limit None in
+    for i = 0 to Array.length bop_arr -1 do
+      match (bop_arr.(i): a wrapped_op) with
+      | Mk (Search key, set) -> 
         let pr = Task.async pool (fun () -> Btree.search t key) in
         Chan.send search_chan (pr, set);
-      | Batched_op (Insert (key, value), set) -> 
+      | Mk (Insert (key, value), set) -> 
         set @@ Btree.insert t key value
         (* Chan.send insert_chan (key, value); set () *)
     done;
@@ -60,9 +57,9 @@ module ExBatchedBtree(V : V) = struct
 end
 
 (* Define Implicit Batching version *)
-module ImpBatchedBtree(V : V) = struct
-  open Batcher.Make(ExBatchedBtree(V))
-  let create = create
-  let search t i = batchify t (Search i)
-  let insert t k v = batchify t (Insert (k, v))
+module ImpBatchedBtree = struct
+  open Batcher.Make1(ExBatchedBtree)
+  let create = init
+  let search t i = apply t (Search i)
+  let insert t k v = apply t (Insert (k, v))
 end
