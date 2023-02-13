@@ -126,8 +126,6 @@ module Make (V: Map.OrderedType) = struct
       y.n <- t - 1;
       Finite_vector.clip y.keys (t - 1);
       Finite_vector.clip y.values (t - 1);
-      if not y.leaf then
-        Finite_vector.drop_last y.children;
       y.no_elements <- t - 1;
       Finite_vector.iter (fun child -> y.no_elements <- y.no_elements + child.no_elements) y.children;
 

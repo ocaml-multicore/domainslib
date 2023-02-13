@@ -1,4 +1,9 @@
 (executable (name finite_vector_tester)
+ (modules finite_vector_tester)
  (libraries data))
 
-(cram (deps ./finite_vector_tester.exe))
+(executable (name btree_tester)
+ (modules btree_tester)
+ (libraries data))
+
+(cram (deps ./finite_vector_tester.exe ./btree_tester.exe))
