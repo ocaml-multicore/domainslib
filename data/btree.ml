@@ -11,6 +11,8 @@ module Make (V: Map.OrderedType) = struct
       leaf: bool;
       mutable children: 'a node Finite_vector.t;
       mutable no_elements: int;             (* number of elements in the node and subtrees  *)
+      mutable capacity: int;
+      mutable min_child_capacity: int;
     }
 
     type 'a t = {
@@ -59,6 +61,8 @@ module Make (V: Map.OrderedType) = struct
         children=Finite_vector.init ~capacity:(2 * max_children) ();
         values=Finite_vector.init ~capacity:(2 * max_children - 1) ();
         no_elements=0;
+        capacity=0;
+        min_child_capacity=0;
       } in
       {root; max_children}
 
@@ -103,6 +107,13 @@ module Make (V: Map.OrderedType) = struct
       | Some (node, i) -> Some node.values.!(i)
       | None -> None
 
+    let min_capacity vec =
+      Finite_vector.fold_left (fun acc vl ->
+        match acc with
+        | None -> Some vl.capacity
+        | Some vl' when vl' > vl.capacity -> Some vl.capacity
+        | _ -> acc) None vec
+
     (* pre: x.(i) has (2 * t - 1) keys *)
     let split_child x i =
       let y = x.children.!(i) in
@@ -113,7 +124,9 @@ module Make (V: Map.OrderedType) = struct
         let children =
           if y.leaf then Finite_vector.init ~capacity:(2 * t) ()
           else Finite_vector.split_from y.children t in
-        { n = t - 1; leaf=y.leaf; keys; values; children; no_elements=0; } in
+        let min_child_capacity = Option.value ~default:0 (min_capacity children) in
+        let capacity = t * (min_child_capacity + 1) in
+        { n = t - 1; leaf=y.leaf; keys; values; children; no_elements=0; capacity; min_child_capacity } in
       z.no_elements <- t - 1;
       Finite_vector.iter (fun child -> z.no_elements <- z.no_elements + child.no_elements) z.children;
 
@@ -128,8 +141,12 @@ module Make (V: Map.OrderedType) = struct
       Finite_vector.clip y.values (t - 1);
       y.no_elements <- t - 1;
       Finite_vector.iter (fun child -> y.no_elements <- y.no_elements + child.no_elements) y.children;
+      y.min_child_capacity <- Option.value ~default:0 (min_capacity y.children);
+      y.capacity <- t * (y.min_child_capacity + 1);
 
-      x.n <- x.n + 1
+      x.n <- x.n + 1;
+      x.min_child_capacity <- min x.min_child_capacity (min y.min_child_capacity z.min_child_capacity);
+      x.capacity <- (2 * t - 1 - x.n) * (x.min_child_capacity + 1)
 
     let rec insert_node ~max_children x k vl =
       let index =
@@ -142,17 +159,23 @@ module Make (V: Map.OrderedType) = struct
       then begin
         Finite_vector.insert x.keys index k;
         Finite_vector.insert x.values index vl;
+        x.capacity <- x.capacity - 1;
         x.n <- x.n + 1;
+        x.capacity
       end else begin
-        if x.children.!(index).n = 2 * max_children - 1
-        then begin
-          split_child x index;
-          if V.compare k x.keys.!(index) > 0
-          then insert_node ~max_children x.children.!(index + 1) k vl
-          else insert_node ~max_children x.children.!(index) k vl
-        end
-        else
-          insert_node ~max_children x.children.!(index) k vl
+        let child_capacity =
+          if x.children.!(index).n = 2 * max_children - 1
+          then begin
+            split_child x index;
+            if V.compare k x.keys.!(index) > 0
+            then insert_node ~max_children x.children.!(index + 1) k vl
+            else insert_node ~max_children x.children.!(index) k vl
+          end
+          else
+            insert_node ~max_children x.children.!(index) k vl in
+        x.min_child_capacity <- min x.min_child_capacity child_capacity;
+        x.capacity <- (2 * max_children - 1 - x.n) * (x.min_child_capacity + 1);
+        x.capacity
       end
 
     let insert tree k vl =
@@ -167,12 +190,14 @@ module Make (V: Map.OrderedType) = struct
           children=Finite_vector.singleton ~capacity:(2 * t) (tree.root);
           values=Finite_vector.init ~capacity:(2 * t - 1) ();
           no_elements=r.no_elements;
+          capacity=0;
+          min_child_capacity=0;
         } in
         tree.root <- s;
         split_child s 0;
-        insert_node ~max_children:tree.max_children s k vl
+        ignore (insert_node ~max_children:tree.max_children s k vl)
       end else
-        insert_node ~max_children:tree.max_children r k vl
+        ignore (insert_node ~max_children:tree.max_children r k vl)
 
   end
 
@@ -265,6 +290,8 @@ module Make (V: Map.OrderedType) = struct
       leaf=true;
       children = Finite_vector.init ~capacity:(2 * t) ();
       no_elements=stop - start;
+      capacity=(2 * t - 1 - (stop - start));
+      min_child_capacity=0;
     }
     else
       let key_inds, sub_ranges = partition_range ~t ~h (start,stop) in
@@ -281,13 +308,16 @@ module Make (V: Map.OrderedType) = struct
       let values = Finite_vector.init_with ~capacity:(2 * t - 1) n (fun pos -> snd arr.(key_inds.(pos))) in
       let children = Finite_vector.init_with ~capacity:(2 * t) (Array.length children)
                        (fun pos -> children.(pos)) in
+      let min_child_capacity = Sequential.min_capacity children |> Option.value ~default:0 in
+      let capacity = (2 * t - 1 - n) * (min_child_capacity + 1) in
       {
         n;
         keys;
         values;
         leaf=false;
         children;
-        no_elements=stop - start
+        no_elements=stop - start;
+        capacity; min_child_capacity
       }
 
   let build_from_sorted ?max_children:(t=3) arr =
@@ -310,7 +340,9 @@ module Make (V: Map.OrderedType) = struct
         let values = Finite_vector.init_with ~capacity:(2 * t - 1) n (fun pos -> snd arr.(key_inds.(pos))) in
         let children = Finite_vector.init_with ~capacity:(2 * t) (Array.length children)
                          (fun pos -> children.(pos)) in
-        { n; keys; values; leaf=false; children; no_elements=Array.length arr } in
+        let min_child_capacity = Sequential.min_capacity children |> Option.value ~default:0 in
+        let capacity = (2 * t - 1 - n) * (min_child_capacity + 1) in
+        { n; keys; values; leaf=false; children; no_elements=Array.length arr; min_child_capacity; capacity } in
     Sequential.{
       root;
       max_children=t
