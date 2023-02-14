@@ -10,7 +10,7 @@ type 'a node = {
 
 type 'a t = {
   mutable root: 'a node;
-  max_keys: int;
+  max_children: int;
 }
 
 let rec size_node node =
@@ -44,7 +44,7 @@ let pp f fmt t =
 let show f vl = Format.asprintf "%a" (pp f) vl
 
 
-let create ?(max_keys=3) () =
+let create ?(max_children=3) () =
   let root = {
     n=0;
     leaf=true;
@@ -53,7 +53,7 @@ let create ?(max_keys=3) () =
     values=[| |];
     no_elements=0;
   } in
-  {root; max_keys}
+  {root; max_children}
 
 let rec search_node x k =
   let index = Iter.int_range ~start:0 ~stop:(x.n - 1)
@@ -123,7 +123,7 @@ let split_child x i =
   (* clip y *)
   resize_node y t
 
-let rec insert_node ~max_size x k vl =
+let rec insert_node ~max_children x k vl =
   let index =
     Iter.int_range_dec ~start:(x.n - 1) ~stop:0
     |> Iter.find (fun i -> if k >= x.keys.(i) then Some (i + 1) else None)
@@ -145,19 +145,19 @@ let rec insert_node ~max_size x k vl =
       );
     x.n <- x.n + 1;
   end else begin
-    if x.children.(index).n = 2 * max_size - 1
+    if x.children.(index).n = 2 * max_children - 1
     then begin
       split_child x index;
       if k > x.keys.(index)
-      then insert_node ~max_size x.children.(index + 1) k vl
-      else insert_node ~max_size x.children.(index) k vl
+      then insert_node ~max_children x.children.(index + 1) k vl
+      else insert_node ~max_children x.children.(index) k vl
     end
     else
-      insert_node ~max_size x.children.(index) k vl
+      insert_node ~max_children x.children.(index) k vl
   end
 
 let insert tree k vl =
-  let t = tree.max_keys in
+  let t = tree.max_children in
   let r = tree.root in
   if r.n = 2 * t - 1
   then begin
@@ -171,6 +171,139 @@ let insert tree k vl =
     } in
     tree.root <- s;
     split_child s 0;
-    insert_node ~max_size:tree.max_keys s k vl
+    insert_node ~max_children:tree.max_children s k vl
   end else
-    insert_node ~max_size:tree.max_keys r k vl
+    insert_node ~max_children:tree.max_children r k vl
+
+let fold_left_map f accu l =
+  let rec aux accu l_accu = function
+    | [] -> accu, List.rev l_accu
+    | x :: l ->
+      let accu, x = f accu x in
+      aux accu (x :: l_accu) l in
+  aux accu [] l
+
+let drop_last ls =
+  let rec loop acc last = function
+    | [] -> List.rev acc
+    | h :: t -> loop (last :: acc) h t in
+  match ls with
+  | [] -> []
+  | h :: t -> loop [] h t
+
+let int_pow x y =
+  let rec loop acc x y =
+    if y > 0 then
+      match y mod 2 with
+      | 0 -> loop acc (x * x) (y / 2)
+      | _ -> loop (acc * x) x (y - 1)
+    else
+      acc in
+  loop 1 x y
+
+let find_height ~t ~no_elts =
+  if no_elts < 2 * t - 1
+  then 1
+  else
+    let rec loop t no_elts h t_h t2_h =
+      if t_h - 1 <= no_elts && no_elts <= t2_h - 1
+      then h
+      else
+        let t_h_1 = t_h * t and t2_h_1 = t2_h * (2 * t) in
+        if t2_h - 1 < no_elts && no_elts < t2_h_1 - 1
+        then h + 1
+        else loop t no_elts (h+1) t_h_1 t2_h_1 in
+    loop t no_elts 1 t (2 * t)
+
+let find_split ?(root=false) ~t ~h r =
+  let max_t = 2 * t in
+  let min_size = int_pow t (h - 1) - 1 in
+  let max_size = int_pow (2 * t) (h - 1) - 1 in
+  let rec loop min_size max_size t =
+    assert (t <= max_t);
+    let elt_size = Int.div (r - t + 1) t in
+    let rem_size = Int.rem (r - t + 1) elt_size in
+    if min_size <= elt_size && elt_size <= max_size &&
+       (rem_size = 0 || elt_size + 1 <= max_size)
+    then (t, elt_size, rem_size)
+    else loop min_size max_size (t + 1) in
+  loop min_size max_size (if root then 2 else t)
+
+let partition_range ?root ~t ~h (start,stop) =
+  let t, sub_range_size, rem = find_split ?root ~t ~h (stop - start) in
+  let key_inds = Array.make (t - 1) 0 in
+  let child_inds = Array.make t 0 in
+  let rem = ref rem in
+  let start = ref start in
+  for i = 0 to t - 1 do
+    let rem_comp = if !rem > 0 then (decr rem; 1) else 0 in
+    child_inds.(i) <- min (!start + sub_range_size + rem_comp) stop;
+    if i < t - 1 then
+      key_inds.(i) <- !start + sub_range_size + rem_comp;
+    start := !start + sub_range_size + rem_comp + 1;
+  done;
+  key_inds, child_inds
+
+let rec build_node ~max_children:t ~h start stop arr =
+  if h <= 1
+  then {
+    n = stop - start;
+    keys = Array.init (stop - start) (fun i -> fst arr.(start + i));
+    values=Array.init (stop - start) (fun i -> snd arr.(start + i));
+    leaf=true;
+    children = [| |];
+    no_elements=stop - start;
+  }
+  else
+    let key_inds, sub_ranges = partition_range ~t ~h (start,stop) in
+
+    let children =
+      let start = ref start in
+      Array.map (fun stop ->
+        let subtree = build_node ~max_children:t ~h:(h - 1) !start stop arr in
+        start := (stop + 1);
+        subtree
+      ) sub_ranges in
+    let n = Array.length key_inds in
+    let keys = Array.make n 0 in
+    let values = Array.make n (snd arr.(start)) in
+    Array.iteri (fun pos i ->
+      keys.(pos) <- fst arr.(i);
+      values.(pos) <- snd arr.(i);
+    ) key_inds;
+    {
+      n;
+      keys;
+      values;
+      leaf=false;
+      children;
+      no_elements=stop - start
+    }
+
+let build_from_sorted ?max_children:(t=3) arr =
+  let h = find_height ~t ~no_elts:(Array.length arr) in
+  let root =
+    if Array.length arr <= 2 * t - 1
+    then build_node ~max_children:t ~h:1 0 (Array.length arr) arr
+    else
+      let key_inds, sub_ranges = partition_range ~root:true ~t ~h (0,(Array.length arr)) in
+
+      let children =
+        let start = ref 0 in
+        Array.map (fun stop ->
+          let subtree = build_node ~max_children:t ~h:(h - 1) !start stop arr in
+          start := stop + 1;
+          subtree
+        ) sub_ranges in
+      let n = Array.length key_inds in
+      let keys = Array.make n 0 in
+      let values = Array.make n (snd arr.(0)) in
+      Array.iteri (fun pos i ->
+        keys.(pos) <- fst arr.(i);
+        values.(pos) <- snd arr.(i);
+      ) key_inds;
+      { n; keys; values; leaf=false; children; no_elements=Array.length arr } in
+  {
+    root;
+    max_children=t
+  }

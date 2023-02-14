@@ -1,10 +1,10 @@
 module T = Domainslib.Task
 
-let max_keys = 3
+let max_children = 3
 let size = 10
 let elems = Array.init size (fun i -> i, "key" ^ string_of_int i)
 let t = 
-  let t = Batch_para_btree.create ~max_keys () in
+  let t = Batch_para_btree.create ~max_children () in
   Array.iter (fun (k,v )-> Batch_para_btree.insert t k v) elems;
   t
 

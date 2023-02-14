@@ -33,7 +33,7 @@ let validate_node (node : 'a node) t height : bool =
 
 (* Check that all leaves have the same depth, check node properties at the same time *)
 let validate_tree (t : 'a Btree.t) : bool =
-  let degree = t.max_keys in
+  let degree = t.max_children in
   let rec walk h node =
     assert(validate_node node degree h);
     if node.leaf then h else
