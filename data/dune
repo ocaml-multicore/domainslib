@@ -1,0 +1,4 @@
+(library (name data)
+ (public_name domainslib.data)
+ (libraries domainslib unix batteries)
+ (modes native))

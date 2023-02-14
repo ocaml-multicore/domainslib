@@ -20,7 +20,7 @@ module ChanBased = struct
     let limit = min batch_size t.batch_limit in
     let topup = max (batch_size - limit) 0 in
     let _ = Atomic.fetch_and_add t.size topup in
-    Array.init limit (fun _ -> Chan.recv t.chan), limit
+    Array.init limit (fun _ -> Chan.recv t.chan)
   let size t = Atomic.get t.size 
 end
 

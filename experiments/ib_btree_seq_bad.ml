@@ -1,37 +1,33 @@
 open Domainslib
 
-module type V = sig
-  type t
-end
-
 (* Define Explicitly Batched version of data structure *)
-module ExBatchedBtree(V : V) = struct
+module ExBatchedBtree = struct
+  type 'a t = 'a Btree.t 
+  type ('a, _) op = 
+    | Search : int -> ('a, 'a option) op
+    | Insert : int * 'a -> ('a, unit) op
 
-  type t = V.t Btree.t 
-  type _ batch_op = 
-    | Search : int -> V.t option batch_op
-    | Insert : int * V.t -> unit batch_op
+  type 'a wrapped_op = 
+      Mk : ('a, 'b) op * ('b -> unit) -> 'a wrapped_op
 
-  type wrapped_batch_op = 
-      Batched_op : 'a batch_op * ('a -> unit) -> wrapped_batch_op
+  let init () = Btree.create ()
 
-  let create () = Btree.create ()
-
-  let[@warning "-27"] bop : V.t Btree.t -> Task.pool -> wrapped_batch_op array -> int -> unit = 
-    fun t _pool bop_arr n ->
-    for i = 0 to n-1 do
-      match bop_arr.(i) with
-      | Batched_op (Search key, set) -> 
+  let[@warning "-27"] run
+    : 'a Btree.t -> Task.pool -> 'a wrapped_op array -> unit = 
+    fun (type a) (t: a Btree.t) _pool (bop_arr: a wrapped_op array) ->
+    for i = 0 to Array.length bop_arr -1 do
+      match (bop_arr.(i): a wrapped_op) with
+      | Mk (Search key, set) -> 
         set @@ None
-      | Batched_op (Insert (key, value), set) -> 
+      | Mk (Insert (key, value), set) -> 
         set @@ Btree.insert t key value 
-    done;
+    done
 end
 
 (* Define Implicit Batching version *)
-module ImpBatchedBtree(V : V) = struct
-  open Batcher.Make(ExBatchedBtree(V))
-  let create = create
-  let search t i = batchify t (Search i)
-  let insert t k v = batchify t (Insert (k, v))
+module ImpBatchedBtree = struct
+  open Batcher.Make1(ExBatchedBtree)
+  let create = init
+  let search t i = apply t (Search i)
+  let insert t k v = apply t (Insert (k, v))
 end

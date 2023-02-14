@@ -14,7 +14,7 @@
 
 *)
 
-module ExBatchedBtree = Ib_btree.Seq.ExBatchedBtree(String)
+module ExBatchedBtree = Ib_btree.Seq.ExBatchedBtree
 module SeqBtree = Btree
 
 type [@warning "-37"] op = 
@@ -69,13 +69,13 @@ let conv_batch_op (op : op) pool res_arr i =
     let wrapped_set res = 
       set res;
       res_arr.(i) <- (Ins (Task.await pool pr)) in
-    ExBatchedBtree.Batched_op (ExBatchedBtree.Insert (k,v), wrapped_set)
+    ExBatchedBtree.Mk (ExBatchedBtree.Insert (k,v), wrapped_set)
   | Search k -> 
     let pr, set = Task.promise () in
     let wrapped_set res = 
       set res;
       res_arr.(i) <- (Search (Task.await pool pr)) in
-    ExBatchedBtree.Batched_op (ExBatchedBtree.Search k, wrapped_set)
+    ExBatchedBtree.Mk (ExBatchedBtree.Search k, wrapped_set)
 
 let snd (_,s,_) = s 
 let thrd (_,_,thrd) = thrd
@@ -91,11 +91,11 @@ let init_seq_t () =
   t
 
 let init_batch_t pool =
-  let t = ExBatchedBtree.create () in
+  let t = ExBatchedBtree.init () in
   let preset_n = List.length preset in
   let preset_result_a = Array.make preset_n Null in
   let batch = List.mapi (fun i op -> conv_batch_op op pool preset_result_a i) preset |> Array.of_list in
-  ExBatchedBtree.bop t pool batch preset_n;
+  ExBatchedBtree.run t pool batch;
   t
 
 let rec interleave e seen = function
@@ -121,7 +121,7 @@ let[@warning "-32"] bop_exec pool batch =
   let res_array = Array.make batch_sz Null in
   let batch_ops = List.mapi (fun i op -> conv_batch_op op pool res_array i) batch |> Array.of_list in
   let t = init_batch_t pool in
-  ExBatchedBtree.bop t pool batch_ops batch_sz;
+  ExBatchedBtree.run t pool batch_ops;
   res_array
 
 let check_linearizable () =

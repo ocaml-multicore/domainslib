@@ -68,7 +68,6 @@ let rec search_node x k =
   else
     search_node (x.children.(index)) k
 
-
 let search t k =
   match search_node t.root k with
   | Some (node, i) -> Some node.values.(i)
