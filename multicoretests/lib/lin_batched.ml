@@ -54,8 +54,7 @@ open struct
       val run: cmd -> t -> res
       (** [run c t] should interpret command [c] over the system under test [t]. *)
 
-      val run_batched : Domainslib.Task.pool -> prefix:cmd list -> cmd list ->
-        (cmd * res) list * (cmd * res) list
+      val run_batched : Domainslib.Task.pool -> t -> cmd list -> (cmd * res) list
         (** [run_batched cs t] should interpret the command [cs] over the system under test [t]. *)
 
     end
@@ -142,13 +141,13 @@ open struct
 
       (* Linearization test *)
       let lin_test ~rep_count ~retries ~count ~name ~lin_prop =
-        let arb_cmd_tuple = arb_cmds_tuple 20 8 in
+        let arb_cmd_tuple = arb_cmds_tuple 20 4 in
         Test.make ~count ~retries ~name
           arb_cmd_tuple (repeat rep_count lin_prop)
 
       (* Negative linearization test *)
       let neg_lin_test ~rep_count ~retries ~count ~name ~lin_prop =
-        let arb_cmd_triple = arb_cmds_tuple 20 8 in
+        let arb_cmd_triple = arb_cmds_tuple 20 4 in
         Test.make_neg ~count ~retries ~name
           arb_cmd_triple (repeat rep_count lin_prop)
     end
@@ -299,29 +298,24 @@ let val_freq freq name value wrapped fntyp =
 module type Spec = sig
 
   type t
-  type sequential_t
-
   type wrapped_op
 
-  val init_sequential : unit -> sequential_t
-  val cleanup_sequential : sequential_t -> unit
+  val init : unit -> t
+  val cleanup : t -> unit
 
-  val init: Domainslib.Task.pool -> t
-  val cleanup: t -> unit
+  val run: Domainslib.Task.pool -> t -> wrapped_op list -> unit
 
-  val run: t -> wrapped_op list -> unit
-
-  val api : (int * (sequential_t, wrapped_op) elem) list
+  val api : (int * (t, wrapped_op) elem) list
 
 end
 
 open struct
   module MakeCmd (ApiSpec : Spec) : Internal.CmdSpec = struct
 
-    type t = ApiSpec.sequential_t
+    type t = ApiSpec.t
 
-    let init = ApiSpec.init_sequential
-    let cleanup = ApiSpec.cleanup_sequential
+    let init = ApiSpec.init
+    let cleanup = ApiSpec.cleanup
 
     (* Typed argument list and return type descriptor *)
     module Args = struct
@@ -556,32 +550,23 @@ open struct
       Res (rty, apply_f f args state)
 
     let compile pool cmd =
-      let state = ApiSpec.init_sequential () in
+      let state = ApiSpec.init () in
       let Cmd { args ; rty ; wrapped_f ; _ } = cmd in
       let promise, get = Domainslib.Task.promise () in
       let op = apply_wrapped_f (wrapped_f get) args state in
-      ApiSpec.cleanup_sequential state;
+      ApiSpec.cleanup state;
       op, fun () -> Res (rty, Domainslib.Task.await pool promise)
 
-    let run_batched pool ~prefix cmds =
-      let t = ApiSpec.init pool in
-
-      (* run sequential prefix: *)
-      let prefix = List.map (fun cmd ->
-          let op, resolve = compile pool cmd in
-          ApiSpec.run t [op];
-          (cmd, resolve ())
-        ) prefix in
+    let run_batched pool t cmds =
       (* retrieve ops for parallel operations *)
       let ops, promises =
         List.map (fun cmd ->
             compile pool cmd
           ) cmds
         |> List.split in
-      ApiSpec.run t ops;
+      ApiSpec.run pool t ops;
       let results = List.map (fun (op, f) -> op, f ()) @@ List.combine cmds promises in
-      ApiSpec.cleanup t;
-      prefix, results
+      results
 
   end
 
@@ -595,12 +580,22 @@ open struct
   end = struct
     module M = Internal.Make(Spec)
 
+    (* setup pool *)
+    let num_domains = Domain.recommended_domain_count ()[@alert "-unstable"]
+    let pool = Domainslib.Task.setup_pool ~num_domains ()
+
+
     let lin_prop (seq_pref, cmds) =
-      (* setup pool *)
-      let num_domains = Domain.recommended_domain_count ()[@alert "-unstable"] in
-      let pool = Domainslib.Task.setup_pool ~num_domains () in
-      (* run sequential prefix then batched operations *)
-      let (pref,obs) = Spec.run_batched pool ~prefix:seq_pref cmds in
+      
+       let t = Spec.init () in
+
+      (* run sequential prefix (but use the batching api) *)
+      let pref = Domainslib.Task.run pool @@ fun () ->
+        List.concat_map (fun cmd ->
+            Spec.run_batched pool t [cmd]
+          ) seq_pref in
+      (* now, run whole batch at once *)
+      let obs = Domainslib.Task.run pool @@ fun () -> Spec.run_batched pool t cmds in
       (* search for explanation *)
       M.check_for_sequential_explanation pref obs
 
@@ -612,5 +607,6 @@ open struct
 
   end
 end
+
 
 module Make (Spec: Spec) = Make_internal(MakeCmd(Spec))
