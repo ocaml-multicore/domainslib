@@ -1,3 +1,18 @@
+let rec iter_insert x ls f =
+  match ls with
+  | [] -> f [x]
+  | h :: t ->
+    f (x :: h :: t);
+    iter_insert x t (fun ls -> f (h :: ls))
+
+let rec iter_permutations ls f =
+  match ls with
+  | [] -> f []
+  | hd :: tl ->
+    iter_permutations tl (fun tl ->
+      iter_insert hd tl f
+    )
+
 module Internal =
 struct
   open QCheck
@@ -34,6 +49,9 @@ struct
     val cleanup : t -> unit
     (** Utility function to clean up [t] after each test instance,
         e.g., for closing sockets, files, or resetting global parameters *)
+
+    val run: cmd -> t -> res
+    (** [run c t] should interpret command [c] over the system under test [t]. *)
 
     val run_batched : cmd list -> t -> res list
     (** [run_batched cs t] should interpret the command [cs] over the system under test [t]. *)
@@ -87,42 +105,30 @@ struct
         boolean indicating whether there exists any permutation of
         [cs1] when applied to a data structure with operations
         [List.rev seq_trace @ prefix] applied to it will produce the outputs seen in [cs2] *)
-    let rec check_batched_cons pref cs1 cs2 seq_sut seq_trace = match pref with
-      (* runs sequential prefix, seq_trace collects executed operations *)
-      | (c,res)::pref' ->
-        if List.equal Spec.equal_res [res] (Spec.run_batched c seq_sut)
-        then check_batched_cons pref' cs1 cs2 seq_sut (c::seq_trace)
-        else (Spec.cleanup seq_sut; false)
-      (* sequential prefix complete, now to validate batched operations *)
-      | [] -> match cs1,cs2 with
-        (* completed, is linearisable *)
-        | [],[] -> Spec.cleanup seq_sut; true
 
-        (* | [],(c2,res2)::cs2' -> *)
-        (*   if Spec.equal_res res2 (Spec.run c2 seq_sut) *)
-        (*   then check_seq_cons pref cs1 cs2' seq_sut (c2::seq_trace) *)
-        (*   else (Spec.cleanup seq_sut; false) *)
+    let rec check_permutation_explains state ops obs =
+      match ops, obs with
+      | [], [] -> true
+      | (op, _) :: ops, (_, ob) :: obs ->
+        let res = Spec.run op state in
+        if Spec.equal_res res ob
+        then check_permutation_explains state ops obs
+        else false
+      | _ -> false
 
-        (* only domain 1 remain, continue: *)
-        (* | (c1,res1)::cs1',[] -> *)
-        (*   if Spec.equal_res res1 (Spec.run c1 seq_sut) *)
-        (*   then check_seq_cons pref cs1' cs2 seq_sut (c1::seq_trace) *)
-        (*   else (Spec.cleanup seq_sut; false) *)
-        (* both domains remain *)
-        | c1 :: cs1',(c2,res2)::cs2' ->
-          (* try c1: *)
-          (if Spec.equal_res res1 (Spec.run c1 seq_sut)
-           then check_seq_cons pref cs1' cs2 seq_sut (c1::seq_trace)
-           else (Spec.cleanup seq_sut; false))
-          ||
-          (* otherwise, recreate state of data structure, and retry *)
-          (* rerun to get seq_sut to same cmd branching point *)
-          (let seq_sut' = Spec.init () in
-           let _ = interp_plain seq_sut' (List.rev seq_trace) in
-           if Spec.equal_res res2 (Spec.run c2 seq_sut')
-           then check_seq_cons pref cs1 cs2' seq_sut' (c2::seq_trace)
-           else (Spec.cleanup seq_sut'; false))
-
+    let check_for_sequential_explanation pref cs1 =
+      let exception Found in
+      try
+        iter_permutations cs1 (fun cs1' ->
+          let state = Spec.init () in
+          List.iter (fun (op, _) -> ignore (Spec.run op state)) pref;
+          let explains = check_permutation_explains state cs1' cs1 in
+          Spec.cleanup state;
+          if explains then
+            raise Found
+        );
+        false
+      with Found -> true
 
     (* Linearization test *)
     let lin_test ~rep_count ~retries ~count ~name ~lin_prop =
@@ -202,8 +208,8 @@ let print_seq pp s =
   let b = Buffer.create 25 in
   Buffer.add_char b '<';
   Seq.iteri (fun i x ->
-      if i > 0 then Buffer.add_string b "; ";
-      Buffer.add_string b (pp x))
+    if i > 0 then Buffer.add_string b "; ";
+    Buffer.add_string b (pp x))
     s;
   Buffer.add_char b '>';
   Buffer.contents b
@@ -385,19 +391,19 @@ module MakeCmd (ApiSpec : Spec) : Internal.CmdSpec = struct
                  | _ -> failwith "Fn/None: should not happen")
        | Some shrk ->
          Iter.(function (Args.Fn (a,args)) ->
-             (map (fun a -> Args.Fn (a,args)) (shrk a))
-             <+>
-             (map (fun args -> Args.Fn (a,args)) (gen_shrinker_of_desc fdesc_rem args))
+           (map (fun a -> Args.Fn (a,args)) (shrk a))
+           <+>
+           (map (fun args -> Args.Fn (a,args)) (gen_shrinker_of_desc fdesc_rem args))
                       | _ -> failwith "Fn/Some: should not happen"))
 
   let api =
     List.map (fun (wgt, Elem { name ; fntyp = fdesc ; value = f }) ->
-        let rty = ret_type fdesc in
-        let open QCheck.Gen in
-        (wgt, gen_args_of_desc fdesc >>= fun args ->
-         let print = gen_printer name fdesc in
-         let shrink = gen_shrinker_of_desc fdesc in
-         return (Cmd { name ; args ; rty ; print ; shrink ; f }))) ApiSpec.api
+      let rty = ret_type fdesc in
+      let open QCheck.Gen in
+      (wgt, gen_args_of_desc fdesc >>= fun args ->
+       let print = gen_printer name fdesc in
+       let shrink = gen_shrinker_of_desc fdesc in
+       return (Cmd { name ; args ; rty ; print ; shrink ; f }))) ApiSpec.api
 
   let gen_cmd : cmd QCheck.Gen.t = QCheck.Gen.frequency api
 
