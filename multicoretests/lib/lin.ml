@@ -91,26 +91,34 @@ struct
       make ~print:(print_triple_vertical Spec.show_cmd) ~shrink:shrink_triple gen_triple
 
     let rec check_seq_cons pref cs1 cs2 seq_sut seq_trace = match pref with
+      (* runs sequential prefix, seq_trace collects executed operations *)
       | (c,res)::pref' ->
         if Spec.equal_res res (Spec.run c seq_sut)
         then check_seq_cons pref' cs1 cs2 seq_sut (c::seq_trace)
         else (Spec.cleanup seq_sut; false)
+      (* sequential prefix complete, now to validate concurrent operations *)
       (* Invariant: call Spec.cleanup immediately after mismatch  *)
       | [] -> match cs1,cs2 with
+        (* no more concurrent *)
         | [],[] -> Spec.cleanup seq_sut; true
+        (* only domain 2 remain, continue: *)
         | [],(c2,res2)::cs2' ->
           if Spec.equal_res res2 (Spec.run c2 seq_sut)
           then check_seq_cons pref cs1 cs2' seq_sut (c2::seq_trace)
           else (Spec.cleanup seq_sut; false)
+        (* only domain 1 remain, continue: *)
         | (c1,res1)::cs1',[] ->
           if Spec.equal_res res1 (Spec.run c1 seq_sut)
           then check_seq_cons pref cs1' cs2 seq_sut (c1::seq_trace)
           else (Spec.cleanup seq_sut; false)
+        (* both domains remain *)
         | (c1,res1)::cs1',(c2,res2)::cs2' ->
+          (* try c1: *)
           (if Spec.equal_res res1 (Spec.run c1 seq_sut)
            then check_seq_cons pref cs1' cs2 seq_sut (c1::seq_trace)
            else (Spec.cleanup seq_sut; false))
           ||
+          (* otherwise, recreate state of data structure, and retry *)
           (* rerun to get seq_sut to same cmd branching point *)
           (let seq_sut' = Spec.init () in
            let _ = interp_plain seq_sut' (List.rev seq_trace) in

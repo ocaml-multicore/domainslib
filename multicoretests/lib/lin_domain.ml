@@ -1,3 +1,4 @@
+[@@@alert "-unstable"]
 open Lin
 
 module Make_internal (Spec : Internal.CmdSpec [@alert "-internal"]) = struct
