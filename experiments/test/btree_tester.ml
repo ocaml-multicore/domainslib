@@ -69,8 +69,8 @@ let () =
     let num_domains = Domain.recommended_domain_count () - 1
     [@@alert "-unstable"] in
     let pool = Domainslib.Task.setup_pool ~num_domains:num_domains () in
-    let ibtree = StrIBB.create pool in
-    let btree = StrIBB.unload ibtree in
+    let ibtree = StrIBB.init pool in
+    let btree = StrIBB.unsafe_get_internal_data ibtree in
     print_btree btree;
     dump_btree fname btree;
     Domainslib.Task.teardown_pool pool
@@ -80,8 +80,8 @@ let () =
     [@@alert "-unstable"] in
     let pool = Domainslib.Task.setup_pool ~num_domains:num_domains () in
     let btree = read_btree fname in
-    let ibtree =  StrIBB.create pool in
-    StrIBB.load ibtree btree;
+    let ibtree =  StrIBB.init pool in
+    StrIBB.unsafe_set_internal_data ibtree btree;
     for _ = 1 to n do
       let key = Random.int 20 in
       let value = "key " ^ (string_of_int key) in

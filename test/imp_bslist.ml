@@ -3,25 +3,25 @@ module BatchedSlist (V : Slist.Comparable) = struct
   module VSL = Slist.Make(V)
   type t = VSL.t
 
-  type _ batch_op =
-    | Ins : V.t -> unit batch_op
+  type _ op =
+    | Ins : V.t -> unit op
     (* We can even add sequential operations into our batchedDS *)
-    | Search : V.t -> bool batch_op
-    | Size : int batch_op
-    | Print : unit batch_op
+    | Search : V.t -> bool op
+    | Size : int op
+    | Print : unit op
 
-  type wrapped_batch_op = Batched_op : 'a batch_op * ('a -> unit) -> wrapped_batch_op
+  type wrapped_op = Mk : 'a op * ('a -> unit) -> wrapped_op
 
-  let create = VSL.make ~size:max_int
-  let bop t pool op_arr num =
+  let init () = VSL.make ~size:max_int ()
+  let run t pool op_arr =
     let size = VSL.size t in
-    let inserts = Array.make num None in
+    let inserts = Array.make (Array.length op_arr) None in
     let i = ref 0 in
     Array.iter (function 
-        | Batched_op (Ins elt, set) -> set (); inserts.(!i) <- Some elt; incr i
-        | Batched_op (Search elt, set) -> set @@ VSL.search t elt 
-        | Batched_op (Size, set) -> set size
-        | Batched_op (Print, set) -> set (); VSL.print_slist t
+        | Mk (Ins elt, set) -> set (); inserts.(!i) <- Some elt; incr i
+        | Mk (Search elt, set) -> set @@ VSL.search t elt 
+        | Mk (Size, set) -> set size
+        | Mk (Print, set) -> set (); VSL.print_slist t
       ) op_arr;
     let inserts = Array.sub inserts 0 !i |> Array.map (Option.get) in
     VSL.par_insert t pool inserts
@@ -30,10 +30,10 @@ end
 
 module ImpBatchedSlist (V : Slist.Comparable) = struct
   include Batcher.Make(BatchedSlist(V))
-  let insert t elt = batchify t (Ins elt)
-  let search t elt = batchify t (Search elt)
-  let size t = batchify t (Size)
-  let print t = batchify t (Print)
+  let insert t elt = apply t (Ins elt)
+  let search t elt = apply t (Search elt)
+  let size t = apply t (Size)
+  let print t = apply t (Print)
 end
 
 module IntImpBatchedSlist = ImpBatchedSlist(Int)
@@ -45,7 +45,7 @@ let test_singular () =
   let pool = Task.setup_pool ~num_domains () in
   Task.run pool (fun () ->
       for _ = 1 to 10 do
-        let slist = IntImpBatchedSlist.create pool in
+        let slist = IntImpBatchedSlist.init pool in
         Task.parallel_for pool ~start:1 ~finish:n ~body:
           (fun elt -> IntImpBatchedSlist.insert slist elt);
         assert (IntImpBatchedSlist.size slist = n)
@@ -57,7 +57,7 @@ let test_multiple () =
   let n = 10000 in
   let num_domains = Domain.recommended_domain_count () - 1 in
   let pool = Task.setup_pool ~num_domains () in
-  let slist_arr = Array.init 10 (fun _ -> IntImpBatchedSlist.create pool) in
+  let slist_arr = Array.init 10 (fun _ -> IntImpBatchedSlist.init pool) in
   Task.run pool (fun () ->
       Task.parallel_for pool ~start:1 ~finish:n ~body:
         (fun elt ->
