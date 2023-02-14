@@ -100,7 +100,7 @@ module CoarseGrained = struct
 
   let run pool (t: t) test_spec =
     Domainslib.Task.parallel_for pool
-      ~start:0 ~finish:(Array.length test_spec.insert_elements + Array.length test_spec.search_elements)
+      ~start:0 ~finish:(Array.length test_spec.insert_elements + Array.length test_spec.search_elements - 1)
       ~body:(fun i ->
         Mutex.lock t.mutex;
         Fun.protect ~finally:(fun () -> Mutex.unlock t.mutex) (fun () ->
@@ -137,11 +137,12 @@ module Batched = struct
 
   let run pool (tree: t) test_spec =
     Domainslib.Task.parallel_for pool
-      ~start:0 ~finish:(Array.length test_spec.insert_elements + Array.length test_spec.search_elements)
+      ~start:0 ~finish:(Array.length test_spec.insert_elements + Array.length test_spec.search_elements - 1)
       ~body:(fun i ->
         if i < Array.length test_spec.insert_elements
         then BatchedIntBtree.apply tree (Insert (test_spec.insert_elements.(i), ()))
-        else ignore (BatchedIntBtree.apply tree (Search test_spec.search_elements.(i - Array.length test_spec.search_elements)))
+        else 
+          ignore (BatchedIntBtree.apply tree (Search test_spec.search_elements.(i - Array.length test_spec.insert_elements)))
       )
 
 end
