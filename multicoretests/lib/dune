@@ -32,7 +32,7 @@
  (name lin_batched)
  (public_name qcheck-lin.lin_batched)
  (modules lin_batched)
- (libraries domainslib qcheck-core qcheck-core.runner qcheck-multicoretests-util))
+ (libraries domainslib qcheck-core qcheck-core.runner qcheck-multicoretests-util qcheck-lin.lin))
 
 (library
  (name lin_domain)

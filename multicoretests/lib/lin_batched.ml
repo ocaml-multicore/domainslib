@@ -1,4 +1,5 @@
-module Internal = struct
+module Internal =
+struct
   open QCheck
   include Util
 
@@ -34,8 +35,9 @@ module Internal = struct
     (** Utility function to clean up [t] after each test instance,
         e.g., for closing sockets, files, or resetting global parameters *)
 
-    val run : cmd -> t -> res
-    (** [run c t] should interpret the command [c] over the system under test [t] (typically side-effecting). *)
+    val run_batched : cmd list -> t -> res list
+    (** [run_batched cs t] should interpret the command [cs] over the system under test [t]. *)
+
   end
 
   (** A functor to create test setups, for all backends (Domain, Thread and Effect).
@@ -43,7 +45,7 @@ module Internal = struct
   module Make(Spec : CmdSpec) = struct
 
     (* plain interpreter of a cmd list *)
-    let interp_plain sut cs = List.map (fun c -> (c, Spec.run c sut)) cs
+    let interp_plain sut cs = List.map (fun c -> (c, Spec.run_batched [c] sut)) cs
 
     let rec gen_cmds fuel =
       Gen.(if fuel = 0
@@ -56,59 +58,64 @@ module Internal = struct
 
     let gen_cmds_size size_gen = Gen.sized_size size_gen gen_cmds
 
-    let shrink_triple (seq,p1,p2) =
+    let shrink_tuple (seq,p1) =
       let open Iter in
       (* Shrinking heuristic:
          First reduce the cmd list sizes as much as possible, since the interleaving
          is most costly over long cmd lists. *)
-      (map (fun seq' -> (seq',p1,p2)) (Shrink.list_spine seq))
+      (map (fun seq' -> (seq',p1)) (Shrink.list_spine seq))
       <+>
-      (match p1 with [] -> Iter.empty | c1::c1s -> Iter.return (seq@[c1],c1s,p2))
+      (match p1 with [] -> Iter.empty | c1::c1s -> Iter.return (seq@[c1],c1s))
       <+>
-      (match p2 with [] -> Iter.empty | c2::c2s -> Iter.return (seq@[c2],p1,c2s))
-      <+>
-      (map (fun p1' -> (seq,p1',p2)) (Shrink.list_spine p1))
-      <+>
-      (map (fun p2' -> (seq,p1,p2')) (Shrink.list_spine p2))
+      (map (fun p1' -> (seq,p1')) (Shrink.list_spine p1))
       <+>
       (* Secondly reduce the cmd data of individual list elements *)
-      (map (fun seq' -> (seq',p1,p2)) (Shrink.list_elems Spec.shrink_cmd seq))
+      (map (fun seq' -> (seq',p1)) (Shrink.list_elems Spec.shrink_cmd seq))
       <+>
-      (map (fun p1' -> (seq,p1',p2)) (Shrink.list_elems Spec.shrink_cmd p1))
-      <+>
-      (map (fun p2' -> (seq,p1,p2')) (Shrink.list_elems Spec.shrink_cmd p2))
+      (map (fun p1' -> (seq,p1')) (Shrink.list_elems Spec.shrink_cmd p1))
 
-    let arb_cmds_triple seq_len par_len =
-      let gen_triple =
+
+    let arb_cmds_tuple seq_len par_len =
+      let gen_tuple =
         Gen.(int_range 2 (2*par_len) >>= fun dbl_plen ->
              let seq_pref_gen = gen_cmds_size (int_bound seq_len) in
-             let par_len1 = dbl_plen/2 in
-             let par_gen1 = gen_cmds_size (return par_len1) in
-             let par_gen2 = gen_cmds_size (return (dbl_plen - par_len1)) in
-             triple seq_pref_gen par_gen1 par_gen2) in
-      make ~print:(print_triple_vertical Spec.show_cmd) ~shrink:shrink_triple gen_triple
+             let par_gen1 = gen_cmds_size (return dbl_plen) in
+             tup2 seq_pref_gen par_gen1) in
+      make ~print:(fun (pre,par) -> (print_triple_vertical Spec.show_cmd (pre,par,par))) ~shrink:shrink_tuple gen_tuple
 
-    let rec check_seq_cons pref cs1 cs2 seq_sut seq_trace = match pref with
+    (** [check_batched_cons pref cs1 cs2 seq_sut seq_trace] returns a
+        boolean indicating whether there exists any permutation of
+        [cs1] when applied to a data structure with operations
+        [List.rev seq_trace @ prefix] applied to it will produce the outputs seen in [cs2] *)
+    let rec check_batched_cons pref cs1 cs2 seq_sut seq_trace = match pref with
+      (* runs sequential prefix, seq_trace collects executed operations *)
       | (c,res)::pref' ->
-        if Spec.equal_res res (Spec.run c seq_sut)
-        then check_seq_cons pref' cs1 cs2 seq_sut (c::seq_trace)
+        if List.equal Spec.equal_res [res] (Spec.run_batched c seq_sut)
+        then check_batched_cons pref' cs1 cs2 seq_sut (c::seq_trace)
         else (Spec.cleanup seq_sut; false)
-      (* Invariant: call Spec.cleanup immediately after mismatch  *)
+      (* sequential prefix complete, now to validate batched operations *)
       | [] -> match cs1,cs2 with
+        (* completed, is linearisable *)
         | [],[] -> Spec.cleanup seq_sut; true
-        | [],(c2,res2)::cs2' ->
-          if Spec.equal_res res2 (Spec.run c2 seq_sut)
-          then check_seq_cons pref cs1 cs2' seq_sut (c2::seq_trace)
-          else (Spec.cleanup seq_sut; false)
-        | (c1,res1)::cs1',[] ->
-          if Spec.equal_res res1 (Spec.run c1 seq_sut)
-          then check_seq_cons pref cs1' cs2 seq_sut (c1::seq_trace)
-          else (Spec.cleanup seq_sut; false)
-        | (c1,res1)::cs1',(c2,res2)::cs2' ->
+
+        (* | [],(c2,res2)::cs2' -> *)
+        (*   if Spec.equal_res res2 (Spec.run c2 seq_sut) *)
+        (*   then check_seq_cons pref cs1 cs2' seq_sut (c2::seq_trace) *)
+        (*   else (Spec.cleanup seq_sut; false) *)
+
+        (* only domain 1 remain, continue: *)
+        (* | (c1,res1)::cs1',[] -> *)
+        (*   if Spec.equal_res res1 (Spec.run c1 seq_sut) *)
+        (*   then check_seq_cons pref cs1' cs2 seq_sut (c1::seq_trace) *)
+        (*   else (Spec.cleanup seq_sut; false) *)
+        (* both domains remain *)
+        | c1 :: cs1',(c2,res2)::cs2' ->
+          (* try c1: *)
           (if Spec.equal_res res1 (Spec.run c1 seq_sut)
            then check_seq_cons pref cs1' cs2 seq_sut (c1::seq_trace)
            else (Spec.cleanup seq_sut; false))
           ||
+          (* otherwise, recreate state of data structure, and retry *)
           (* rerun to get seq_sut to same cmd branching point *)
           (let seq_sut' = Spec.init () in
            let _ = interp_plain seq_sut' (List.rev seq_trace) in
@@ -116,15 +123,16 @@ module Internal = struct
            then check_seq_cons pref cs1 cs2' seq_sut' (c2::seq_trace)
            else (Spec.cleanup seq_sut'; false))
 
+
     (* Linearization test *)
     let lin_test ~rep_count ~retries ~count ~name ~lin_prop =
-      let arb_cmd_triple = arb_cmds_triple 20 12 in
+      let arb_cmd_tuple = arb_cmds_tuple 20 8 in
       Test.make ~count ~retries ~name
-        arb_cmd_triple (repeat rep_count lin_prop)
+        arb_cmd_tuple (repeat rep_count lin_prop)
 
     (* Negative linearization test *)
     let neg_lin_test ~rep_count ~retries ~count ~name ~lin_prop =
-      let arb_cmd_triple = arb_cmds_triple 20 12 in
+      let arb_cmd_triple = arb_cmds_tuple 20 12 in
       Test.make_neg ~count ~retries ~name
         arb_cmd_triple (repeat rep_count lin_prop)
   end
@@ -240,12 +248,12 @@ let equal : type a s c. (a, deconstructible, s, c) ty -> a -> a -> bool = fun ty
 
 module Fun = struct
   (* Function type, number of arguments (unary encoding), state type *)
-  type (_,_,_,_,_) fn =
-    | Ret :        ('a, deconstructible, 's, combinable) ty -> ('a, 'b, 'a, 's, 'b) fn
-    | Ret_or_exc : ('a, deconstructible, 's, combinable) ty -> ('a, 'b, ('a,exn) result, 's, 'b) fn
-    | Ret_ignore : ('a, _, 's, _) ty -> ('a, 'b, unit, 's, 'b) fn
-    | Ret_ignore_or_exc : ('a, _, 's, _) ty -> ('a, 'b, (unit,exn) result, 's, 'b) fn
-    | Fn : ('a, constructible, 's, _) ty * ('b, 'bb, 'r, 's, 'wrap) fn -> ('a -> 'b, 'a -> 'bb, 'r, 's, 'wrap) fn
+  type (_,_,_) fn =
+    | Ret :        ('a, deconstructible, 's, combinable) ty -> ('a, 'a, 's) fn
+    | Ret_or_exc : ('a, deconstructible, 's, combinable) ty -> ('a, ('a,exn) result, 's) fn
+    | Ret_ignore : ('a, _, 's, _) ty -> ('a, unit, 's) fn
+    | Ret_ignore_or_exc : ('a, _, 's, _) ty -> ('a, (unit,exn) result, 's) fn
+    | Fn : ('a, constructible, 's, _) ty * ('b, 'r, 's) fn -> ('a -> 'b, 'r, 's) fn
 end
 
 let returning a = Fun.Ret a
@@ -254,39 +262,32 @@ let returning_ a = Fun.Ret_ignore a
 let returning_or_exc_ a = Fun.Ret_ignore_or_exc a
 let (@->) a b = Fun.Fn (a,b)
 
-type (_, _) elem =
+type _ elem =
   | Elem :
-      { name : string;
-        fntyp : ('ftyp, 'foptyp, 'r, 's, 'wrap) Fun.fn;
-        value : 'ftyp;
-        op: 'foptyp;
-      } -> ('s, 'wrap) elem
+      { name : string
+      ; fntyp : ('ftyp, 'r, 's) Fun.fn
+      ; value : 'ftyp
+      }
+      -> 's elem
 
-type ('s, 'wrap) api = int * ('s,'wrap) elem list
+type 's api = (int * 's elem) list
 
-let val_ name value op fntyp =
-  (1, Elem { name ; fntyp ; value; op; })
+let val_ name value fntyp =
+  (1, Elem { name ; fntyp ; value })
 
-let val_freq freq name value op fntyp =
-  (freq, Elem { name ; fntyp ; value; op })
+let val_freq freq name value fntyp =
+  (freq, Elem { name ; fntyp ; value })
 
 module type Spec = sig
   type t
-  type 'a op
-  type wrapped_op = Mk: 'a op * ('a -> unit) -> wrapped_op
-
   val init : unit -> t
-
   val cleanup : t -> unit
-
-  val api : (int * (t, wrapped_op) elem) list
-
+  val api : (int * t elem) list
 end
 
 module MakeCmd (ApiSpec : Spec) : Internal.CmdSpec = struct
 
   type t = ApiSpec.t
-  type wrapped_op = ApiSpec.wrapped_op
 
   let init = ApiSpec.init
   let cleanup = ApiSpec.cleanup
@@ -320,7 +321,7 @@ module MakeCmd (ApiSpec : Spec) : Internal.CmdSpec = struct
   (* Function to generate typed list of arguments from a function description.
      The printer can be generated independently. *)
   let rec gen_args_of_desc
-    : type a af r. (a, af, r, t, wrapped_op) Fun.fn -> ((a, r) Args.args) QCheck.Gen.t =
+    : type a r. (a, r, t) Fun.fn -> ((a, r) Args.args) QCheck.Gen.t =
     fun fdesc ->
     let open QCheck.Gen in
     match fdesc with
@@ -337,7 +338,7 @@ module MakeCmd (ApiSpec : Spec) : Internal.CmdSpec = struct
       return @@ Args.Fn (arg, args_rem)
 
   let rec ret_type
-    : type a af r. (a,af,r,t,wrapped_op) Fun.fn -> (r, deconstructible, t, _) ty
+    : type a r. (a,r,t) Fun.fn -> (r, deconstructible, t, _) ty
     = fun fdesc ->
       match fdesc with
       | Fun.Ret ty -> ty
@@ -346,7 +347,7 @@ module MakeCmd (ApiSpec : Spec) : Internal.CmdSpec = struct
       | Fun.Ret_ignore_or_exc _ -> or_exn unit
       | Fun.Fn (_, fdesc_rem) -> ret_type fdesc_rem
 
-  let rec show_args : type a af r. (a, af,r,t,wrapped_op) Fun.fn -> (a,r) Args.args -> string list = fun fdesc args ->
+  let rec show_args : type a r. (a,r,t) Fun.fn -> (a,r) Args.args -> string list = fun fdesc args ->
     match fdesc,args with
     | _, Args.(Ret _ | Ret_or_exc _ | Ret_ignore _ | Ret_ignore_or_exc _) -> []
     | Fun.(Fn (State, fdesc_rem)), Args.(FnState args_rem) ->
@@ -359,12 +360,12 @@ module MakeCmd (ApiSpec : Spec) : Internal.CmdSpec = struct
     | Fun.(Ret _ | Ret_or_exc _ | Ret_ignore _ | Ret_ignore_or_exc _), Args.(Fn _ | FnState _) ->
       assert false
 
-  let gen_printer : type a af r. string -> (a,af,r,t,wrapped_op) Fun.fn -> (a,r) Args.args -> string = fun name fdesc args ->
+  let gen_printer : type a r. string -> (a,r,t) Fun.fn -> (a,r) Args.args -> string = fun name fdesc args ->
     name ^ " " ^ (String.concat " " (show_args fdesc args))
 
   (* Extracts a QCheck shrinker for argument lists *)
   let rec gen_shrinker_of_desc
-    : type a af r. (a, af, r, t, wrapped_op) Fun.fn -> ((a, r) Args.args) QCheck.Shrink.t =
+    : type a r. (a, r, t) Fun.fn -> ((a, r) Args.args) QCheck.Shrink.t =
     fun fdesc ->
     let open QCheck in
     match fdesc with
@@ -390,7 +391,7 @@ module MakeCmd (ApiSpec : Spec) : Internal.CmdSpec = struct
                       | _ -> failwith "Fn/Some: should not happen"))
 
   let api =
-    List.map (fun (wgt, Elem { name ; fntyp = fdesc ; value = f; op=_;  }) ->
+    List.map (fun (wgt, Elem { name ; fntyp = fdesc ; value = f }) ->
         let rty = ret_type fdesc in
         let open QCheck.Gen in
         (wgt, gen_args_of_desc fdesc >>= fun args ->
@@ -470,5 +471,4 @@ module MakeCmd (ApiSpec : Spec) : Internal.CmdSpec = struct
   let run cmd state =
     let Cmd { args ; rty ; f ; _ } = cmd in
     Res (rty, apply_f f args state)
-
 end
