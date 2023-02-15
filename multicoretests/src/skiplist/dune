@@ -1,0 +1,12 @@
+;; Test of the counter library
+
+(test
+ (name lin_tests)
+ (modules lin_tests)
+ (package multicoretests)
+ (flags (:standard -w -27))
+ (libraries qcheck-lin.batched domainslib.data)
+ (preprocess (pps ppx_deriving_qcheck ppx_deriving.show ppx_deriving.eq))
+ (action (run %{test} --verbose))
+)
+

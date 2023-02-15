@@ -1,0 +1,6 @@
+
+(library
+ (name lin_batched)
+ (public_name qcheck-lin.batched)
+ (modules lin_batched)
+ (libraries domainslib qcheck-core qcheck-core.runner qcheck-multicoretests-util))

@@ -1,0 +1,9 @@
+(env
+ (debug-runtime (link_flags :standard -runtime-variant=d))
+)
+
+;; make `dune build` target a recursive default target
+(alias
+ (name default)
+ (package multicoretests)
+ (deps (alias src/default)))
