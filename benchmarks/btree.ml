@@ -3,7 +3,7 @@ module IntBtree = Data.Btree.Make(Int)
 module BatchedIntBtree = Domainslib.Batcher.Make1(IntBtree)
 
 type generic_test_spec = {
-  initial_elements: int array;
+  initial_elements: (unit -> int array);
   insert_elements: int array;
   search_elements: int array;
 }
@@ -21,19 +21,9 @@ let generic_spec_args: generic_spec_args Cmdliner.Term.t =
   Term.(const (fun sorted no_searches -> {sorted; no_searches=Option.value ~default:0 no_searches}) $ sorted $ no_searches)
 
 let generic_test_spec ~initial_count ~count ~min ~max spec_args =
-  let all_elements = Util.gen_random_array ~min ~max (initial_count + count) in
+  let initial_elements () = Util.gen_random_array ~min ~max initial_count in
+  let insert_elements = Util.gen_random_array ~min ~max count in
   let search_elements = Util.gen_random_array ~min ~max spec_args.no_searches in
-  let initial_elements = Array.make initial_count min in
-  let insert_elements = Array.make count min in
-  Array.blit
-    all_elements 0
-    initial_elements 0
-    initial_count;
-  Array.blit
-    all_elements initial_count
-    insert_elements 0
-    count;
-
   if spec_args.sorted then
     Array.sort Int.compare insert_elements;
   { initial_elements; insert_elements; search_elements }
@@ -54,7 +44,7 @@ module Sequential = struct
   let init _pool test_spec =
     let tree = IntBtree.Sequential.init ~max_children:8 () in
     Array.iter (fun i -> IntBtree.Sequential.insert tree i ())
-      test_spec.initial_elements;
+      (test_spec.initial_elements ());
     tree
 
   let run _pool t test_spec =
@@ -84,7 +74,7 @@ module CoarseGrained = struct
   let init _pool test_spec =
     let tree = IntBtree.Sequential.init ~max_children:8 () in
     Array.iter (fun i -> IntBtree.Sequential.insert tree i ())
-      test_spec.initial_elements;
+      (test_spec.initial_elements ());
     let mutex = Mutex.create () in
     {tree;mutex}
 
@@ -121,7 +111,7 @@ module Batched = struct
     let tree = BatchedIntBtree.init pool in
     Domainslib.Task.run pool (fun () ->
         Array.iter (fun i -> BatchedIntBtree.apply tree (Insert (i, ())))
-          test_spec.initial_elements;
+          (test_spec.initial_elements ());
       );
     tree
 

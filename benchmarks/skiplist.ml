@@ -2,7 +2,7 @@ module IntSkiplist = Data.Skiplist.Make(Int)
 module BatchedSkiplist = Domainslib.Batcher.Make(Data.Skiplist.Make(Int))
 
 type generic_test_spec = {
-  initial_elements: int array;
+  initial_elements: (unit -> int array);
   insert_elements : int array;
   search_elements : int array;
   size : int
@@ -24,18 +24,9 @@ let generic_spec_args: generic_spec_args Cmdliner.Term.t =
   Term.(const (fun sorted no_searches no_size -> {sorted; no_searches=Option.value ~default:0 no_searches; no_size=Option.value ~default:0 no_size}) $ sorted $ no_searches $ no_size)
 
 let generic_test_spec ~initial_count ~count ~min ~max spec_args =
-  let all_elements = Util.gen_random_array ~min ~max (initial_count + count) in
+  let initial_elements () = Util.gen_random_array ~min ~max initial_count in
+  let insert_elements = Util.gen_random_array ~min ~max count in
   let search_elements = Util.gen_random_array ~min ~max spec_args.no_searches in
-  let initial_elements = Array.make initial_count min in
-  let insert_elements = Array.make count min in
-  Array.blit
-    all_elements 0
-    initial_elements 0
-    initial_count;
-  Array.blit
-    all_elements initial_count
-    insert_elements 0
-    count;
   if spec_args.sorted then
     Array.sort Int.compare insert_elements;
   { initial_elements; insert_elements; search_elements; size=spec_args.no_size }
@@ -54,9 +45,10 @@ module Sequential = struct
     generic_test_spec ~initial_count ~count ~min ~max spec_args
 
   let init _pool test_spec = 
-    let size = Array.length test_spec.initial_elements + Array.length test_spec.insert_elements in
+    let initial_elements = test_spec.initial_elements () in
+    let size = Array.length initial_elements + Array.length test_spec.insert_elements in
     let skiplist = IntSkiplist.Sequential.init ~size () in
-    Array.iter (fun i -> IntSkiplist.Sequential.insert skiplist i) test_spec.initial_elements;
+    Array.iter (fun i -> IntSkiplist.Sequential.insert skiplist i) initial_elements;
     skiplist
 
   let run _pool t test_spec =
@@ -85,9 +77,10 @@ module CoarseGrained = struct
     generic_test_spec ~initial_count ~count ~min ~max spec_args
 
   let init _pool test_spec = 
-    let size = Array.length test_spec.initial_elements + Array.length test_spec.insert_elements in
+    let initial_elements = test_spec.initial_elements () in
+    let size = Array.length initial_elements + Array.length test_spec.insert_elements in
     let skiplist = IntSkiplist.Sequential.init ~size () in
-    Array.iter (fun i -> IntSkiplist.Sequential.insert skiplist i) test_spec.initial_elements;
+    Array.iter (fun i -> IntSkiplist.Sequential.insert skiplist i) initial_elements;
     {skiplist; mutex=Mutex.create ()}
 
   let run pool t test_spec =
@@ -122,8 +115,9 @@ module Batched = struct
     generic_test_spec ~initial_count ~count ~min ~max spec_args
 
   let init pool test_spec = 
+    let initial_elements = test_spec.initial_elements () in
     let skiplist = BatchedSkiplist.init pool in
-    Array.iter (fun i -> BatchedSkiplist.apply skiplist (Insert i)) test_spec.initial_elements;
+    Array.iter (fun i -> BatchedSkiplist.apply skiplist (Insert i)) initial_elements;
     skiplist
 
   let run pool t test_spec =
