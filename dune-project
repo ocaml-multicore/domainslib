@@ -23,8 +23,6 @@
   (qcheck-multicoretests-util (and :with-test (>= "0.1")))
   (qcheck-stm (and :with-test (>= "0.1")))))
 
-
- 
 (package
  (name multicoretests)
  (synopsis "Experimental multicore test suite of OCaml 5.0")
@@ -32,6 +30,7 @@
  (description "This package contains a collection of randomized QCheck tests to exercise
 the multicore run-time of OCaml 5.0.")
  (tags ("test" "test suite" "property" "qcheck" "quickcheck" "multicore" "non-determinism"))
+ (allow_empty)
  (depends
   base-domains
   (ppx_deriving         (>= "5.2.1"))
@@ -40,18 +39,6 @@ the multicore run-time of OCaml 5.0.")
   (qcheck-lin           (= :version))
   (qcheck-stm           (= :version))))
 
-(package
- (name qcheck-stm)
- (synopsis "State-machine testing library for sequential and parallel model-based tests")
- (description "A state-machine testing library based on QCheck that can generate both
-sequential and parallel tests against a declarative model.")
- (tags ("test" "property" "qcheck" "quickcheck" "state-machine testing"
-        "model-based testing" "parallel testing"))
- (depends
-  base-domains
-  (qcheck-core           (>= "0.20"))
-  (qcheck-multicoretests-util (= :version))
-  (ppx_deriving          (and :with-test (>= "5.2.1")))))
 
 (package
  (name qcheck-lin)
@@ -65,15 +52,5 @@ and explained by some sequential interleaving.")
  (depends
   base-domains
   (qcheck-core           (>= "0.20"))
-  (qcheck-multicoretests-util (= :version))
   (ppx_deriving          (and :with-test (>= "5.2.1")))))
 
-(package
- (name qcheck-multicoretests-util)
- (synopsis "Various utility functions for property-based testing of multicore programs")
- (description "A small library of utility functions for QCheck-based testing of
-multicore programs.")
- (tags ("test" "property" "qcheck" "quickcheck" "multicore" "non-determinism"))
- (depends
-  base-domains
-  (qcheck-core           (>= "0.20"))))
