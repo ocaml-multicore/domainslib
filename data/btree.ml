@@ -25,6 +25,7 @@ module Make (V: Map.OrderedType) = struct
       then Finite_vector.length node.values
       else Finite_vector.fold_left (fun acc vl -> acc + size_node vl) 0 node.children
 
+    let size t = t.root.no_elements
 
     let rec pp_node ?(pp_child=true) ?(pp_v=fun fmt _ -> Format.fprintf fmt "<opaque>") indent f fmt node =
       let spaces = (String.make indent ' ') in
