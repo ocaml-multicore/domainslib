@@ -46,6 +46,14 @@ let get t i =
   | Empty _ -> failwith "found empty buf"
   | Buf arr -> arr.(i)
 
+let set t i vl =
+  if t.size <= i then
+    invalid_arg "invalid index for dereference";
+  match t.buf with
+  | Empty _ -> failwith "found empty buf"
+  | Buf arr -> arr.(i) <- vl
+
+
 let fold_left f x a =
   match a.buf with
   | Empty _ -> x

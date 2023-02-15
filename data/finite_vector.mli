@@ -24,6 +24,9 @@ val to_array : 'a t -> 'a array
 val get : 'a t -> int -> 'a
 (** [get vec n] retrieves the [n]th element in [vec]. *)
 
+val set : 'a t -> int -> 'a -> unit
+(** [set vec n vl] sets the [n]th element in [vec] to [vl]. *)
+
 val split_from : 'a t -> int -> 'a t
 (** [split_from vec n] partitions [vec] into two halves, returning a
     new vector [vec] with the elements at index ([ind]...) onwards,

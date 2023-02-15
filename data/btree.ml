@@ -116,17 +116,17 @@ module Make (V: Map.OrderedType) = struct
         | _ -> acc) None vec
 
     (* pre: x.(i) has (2 * t - 1) keys *)
-    let split_child x i =
+    let split_child ~max_children x i =
       let y = x.children.!(i) in
       let t = (y.n + 1) / 2 in
       let z =
         let keys = Finite_vector.split_from y.keys t in
         let values = Finite_vector.split_from y.values t in
         let children =
-          if y.leaf then Finite_vector.init ~capacity:(2 * t) ()
+          if y.leaf then Finite_vector.init ~capacity:(2 * max_children) ()
           else Finite_vector.split_from y.children t in
         let min_child_capacity = Option.value ~default:0 (min_capacity children) in
-        let capacity = t * (min_child_capacity + 1) in
+        let capacity = (2 * max_children - 1 - (t - 1)) * (min_child_capacity + 1) + min_child_capacity in
         { n = t - 1; leaf=y.leaf; keys; values; children; no_elements=0; capacity; min_child_capacity } in
       z.no_elements <- t - 1;
       Finite_vector.iter (fun child -> z.no_elements <- z.no_elements + child.no_elements) z.children;
@@ -143,11 +143,11 @@ module Make (V: Map.OrderedType) = struct
       y.no_elements <- t - 1;
       Finite_vector.iter (fun child -> y.no_elements <- y.no_elements + child.no_elements) y.children;
       y.min_child_capacity <- Option.value ~default:0 (min_capacity y.children);
-      y.capacity <- t * (y.min_child_capacity + 1);
+      y.capacity <- (2 * max_children - 1 - (t - 1)) * (y.min_child_capacity + 1) + y.min_child_capacity;
 
       x.n <- x.n + 1;
       x.min_child_capacity <- min x.min_child_capacity (min y.min_child_capacity z.min_child_capacity);
-      x.capacity <- (2 * t - 1 - x.n) * (x.min_child_capacity + 1)
+      x.capacity <- (2 * max_children - 1 - x.n) * (x.min_child_capacity + 1) + x.min_child_capacity
 
     let rec insert_node ~max_children x k vl =
       let index =
@@ -167,7 +167,7 @@ module Make (V: Map.OrderedType) = struct
         let child_capacity =
           if x.children.!(index).n = 2 * max_children - 1
           then begin
-            split_child x index;
+            split_child ~max_children x index;
             if V.compare k x.keys.!(index) > 0
             then insert_node ~max_children x.children.!(index + 1) k vl
             else insert_node ~max_children x.children.!(index) k vl
@@ -175,7 +175,7 @@ module Make (V: Map.OrderedType) = struct
           else
             insert_node ~max_children x.children.!(index) k vl in
         x.min_child_capacity <- min x.min_child_capacity child_capacity;
-        x.capacity <- (2 * max_children - 1 - x.n) * (x.min_child_capacity + 1);
+        x.capacity <- (2 * max_children - 1 - x.n) * (x.min_child_capacity + 1) + x.min_child_capacity;
         x.capacity
       end
 
@@ -195,7 +195,7 @@ module Make (V: Map.OrderedType) = struct
           min_child_capacity=0;
         } in
         tree.root <- s;
-        split_child s 0;
+        split_child ~max_children:tree.max_children s 0;
         ignore (insert_node ~max_children:tree.max_children s k vl)
       end else
         ignore (insert_node ~max_children:tree.max_children r k vl)
@@ -310,7 +310,7 @@ module Make (V: Map.OrderedType) = struct
       let children = Finite_vector.init_with ~capacity:(2 * t) (Array.length children)
                        (fun pos -> children.(pos)) in
       let min_child_capacity = Sequential.min_capacity children |> Option.value ~default:0 in
-      let capacity = (2 * t - 1 - n) * (min_child_capacity + 1) in
+      let capacity = (2 * t - 1 - n) * (min_child_capacity + 1) + min_child_capacity in
       {
         n;
         keys;
@@ -342,7 +342,7 @@ module Make (V: Map.OrderedType) = struct
         let children = Finite_vector.init_with ~capacity:(2 * t) (Array.length children)
                          (fun pos -> children.(pos)) in
         let min_child_capacity = Sequential.min_capacity children |> Option.value ~default:0 in
-        let capacity = (2 * t - 1 - n) * (min_child_capacity + 1) in
+        let capacity = (2 * t - 1 - n) * (min_child_capacity + 1) + min_child_capacity in
         { n; keys; values; leaf=false; children; no_elements=Array.length arr; min_child_capacity; capacity } in
     Sequential.{
       root;
@@ -398,6 +398,130 @@ module Make (V: Map.OrderedType) = struct
     results
 
 
+  let rec par_insert_node ~pool ~max_children (t: 'a Sequential.node) (batch: (V.t * 'a) array) start stop =
+    if stop <= start then t.min_child_capacity
+    else if t.leaf then begin
+      for i = start to stop - 1 do
+        let key,vl = batch.(i) in
+        ignore (Sequential.insert_node ~max_children t key vl)
+      done;
+      t.min_child_capacity
+    end else begin
+      let sub_intervals = Finite_vector.init ~capacity:(2 * max_children) () in
+      let sub_interval_size i =
+        let (start,stop) = sub_intervals.!(i) in
+        stop - start in
+
+      let last_sub_interval_end = ref start in
+
+      (* partition batch by children  *)
+      for i = 0 to Finite_vector.length t.keys - 1 do
+        let interval_start = !last_sub_interval_end in
+        while !last_sub_interval_end < stop &&
+              V.compare (fst batch.(!last_sub_interval_end)) t.keys.!(i) < 0 do
+          incr last_sub_interval_end
+        done;
+        Finite_vector.insert sub_intervals i (interval_start, !last_sub_interval_end)
+      done;
+      Finite_vector.insert sub_intervals (Finite_vector.length t.keys) (!last_sub_interval_end, stop);
+
+      (* iterate through sub-intervals, and calculate number of splits that would be needed: *)
+      let no_splits = ref 0 in
+      for i = 0 to Finite_vector.length sub_intervals - 1 do
+        if t.children.!(i).capacity < sub_interval_size i then
+          incr no_splits;
+      done;
+      (* now, as splitting children requires ownership of the whole node, we handle all splitting first *)
+      let current_sub_interval = ref 0 in
+      while !no_splits > 0 do
+        (* skip over sub_intervals that are within capacity *)
+        while t.children.!(!current_sub_interval).capacity >= sub_interval_size !current_sub_interval do
+          incr current_sub_interval
+        done;
+
+        (* found a sub interval that is over-capacity *)
+        while t.children.!(!current_sub_interval).capacity < sub_interval_size !current_sub_interval do
+
+          let (start,stop) = sub_intervals.!(!current_sub_interval) in
+          (* if current sub-interval's node is full *)
+          if 2 * max_children - 1 = t.children.!(!current_sub_interval).n
+          then begin
+            (* split the child *)
+            Sequential.split_child ~max_children t !current_sub_interval;
+            (* re-calculate interval, and interval for new child *)
+            let new_stop_interval = ref start in
+            while !new_stop_interval < stop &&
+                  V.compare (fst batch.(!new_stop_interval)) t.keys.!(!current_sub_interval) < 0 do
+              incr new_stop_interval
+            done;
+            (* update intervals *)
+            Finite_vector.set sub_intervals !current_sub_interval (start, !new_stop_interval);
+            Finite_vector.insert sub_intervals (!current_sub_interval + 1) (!new_stop_interval, stop);
+            (* update no splits: new child may also be over capacity *)
+            if t.children.!(!current_sub_interval + 1).capacity < sub_interval_size (!current_sub_interval + 1) then
+              incr no_splits
+          end else begin
+
+            let (key,vl) = batch.(start) in
+            (* otherwise, just insert the current element *)
+            let min_capacity =
+              Sequential.insert_node ~max_children
+                t.children.!(!current_sub_interval) key vl in
+            (* update the interval to track the fact that the start no longer needs to be inserted *)
+            Finite_vector.set sub_intervals !current_sub_interval (start + 1, stop);
+            (* update capacity *)
+            t.min_child_capacity <- min min_capacity t.min_child_capacity;
+            t.capacity <-
+              (2 * max_children - 1 - t.n) * (t.min_child_capacity + 1)  + t.min_child_capacity
+          end
+        done;
+        (* we have successfully dispatched one of the splits *)
+        decr no_splits;
+      done;
+
+      (* now, all splits are done, do all in parallel! *)
+      let min_child_capacity =
+        Domainslib.Task.parallel_for_reduce pool ~start:0 ~finish:(Finite_vector.length sub_intervals - 1) ~body:(fun i ->
+          let start,stop = sub_intervals.!(i) in
+          par_insert_node ~pool ~max_children t.children.!(i) batch start stop
+        ) min t.min_child_capacity in
+      t.min_child_capacity <- min t.min_child_capacity min_child_capacity;
+      t.capacity <- (2 * max_children - 1 - t.n) * (t.min_child_capacity + 1) + t.min_child_capacity;
+      t.capacity
+    end
+
+  let rec par_insert ~pool (t: 'a t) (batch: (V.t * 'a) array) start stop =
+    let n = stop - start in
+    if n <= 0                                  (* a) we are finished inserting *)
+    then ()
+    else if n <= t.root.capacity               (* b) we are inserting fewer elements than our capacity - good! let's go! *)
+    then ignore (par_insert_node ~pool ~max_children:t.max_children t.root batch start stop)
+    else if 2 * t.max_children - 1 = t.root.n (* c) our root has reached max capacity - split! *)
+    then begin
+      let s = Sequential.{
+        n=0;
+        leaf=false;
+        keys=Finite_vector.init ~capacity:(2 * t.max_children - 1) ();
+        children=Finite_vector.singleton ~capacity:(2 * t.max_children) (t.root);
+        values=Finite_vector.init ~capacity:(2 * t.max_children - 1) ();
+        no_elements=t.root.no_elements;
+        capacity=0;
+        min_child_capacity=0;
+      } in
+      t.root <- s;
+      Sequential.split_child ~max_children:t.max_children s 0;
+      par_insert ~pool t batch start stop
+    end 
+    else if n = 1
+    then ignore (Sequential.insert_node ~max_children:t.max_children t.root (fst batch.(start)) (snd batch.(start)))
+    else begin                                (* d) insert as much as we can and repeat! *)
+      ignore (par_insert_node ~pool ~max_children:t.max_children t.root batch start (start + t.root.capacity));
+      par_insert ~pool t batch (start + t.root.capacity) stop
+    end
+
+  let par_insert ~pool t batch =
+    par_insert ~pool t batch 0 (Array.length batch)
+
   let run (type a) (t: a t) (pool: Domainslib.Task.pool) (ops: a wrapped_op array) : unit =
     let searches : (V.t * (a option -> unit)) list ref = ref [] in
     let inserts : (V.t * a) list ref = ref [] in
@@ -413,9 +537,7 @@ module Make (V: Map.OrderedType) = struct
       kont (Sequential.search t key)
     );
     let inserts = Array.of_list !inserts in
-    for i = 0 to Array.length inserts - 1 do
-      let k,v = inserts.(i) in
-      Sequential.insert t k v
-    done
+    Array.sort (fun (k1,_) (k2,_) -> V.compare k1 k2) inserts;
+    par_insert ~pool t inserts
 
 end
