@@ -74,7 +74,7 @@ let () =
   let min =
     Arg.(value @@ opt int 0 @@ info ~doc:"Minimum value of data for random inputs" ["min"]) in
   let max =
-    Arg.(value @@ opt int 100000 @@ info ~doc:"Maximum value of data for random inputs" ["max"]) in
+    Arg.(value @@ opt int ((Int.shift_left 1 30) - 1) @@ info ~doc:"Maximum value of data for random inputs" ["max"]) in
 
   let sub_cmds =
     Hashtbl.to_seq benchmarks
