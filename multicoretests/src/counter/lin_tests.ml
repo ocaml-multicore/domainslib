@@ -37,5 +37,5 @@ end
 module CounterTest = Lin_batched.Make(Counter) [@alert "-internal"]
 ;;
 QCheck_base_runner.run_tests_main [
-  CounterTest.lin_test ~count:10 ~name:"Counter's Batched API is linearisable"
+  CounterTest.lin_test ~count:100 ~name:"Counter's Batched API is linearisable"
 ]

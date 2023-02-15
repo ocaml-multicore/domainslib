@@ -107,27 +107,30 @@ open struct
           [cs1] when applied to a data structure with operations
           [List.rev seq_trace @ prefix] applied to it will produce the outputs seen in [cs2] *)
 
-      let rec check_permutation_explains state ops obs =
-        match ops, obs with
-        | [], [] -> true
-        | (op, _) :: ops, (_, ob) :: obs ->
+      let rec check_permutation_explains state ops obs_arr =
+        match ops with
+        | [] -> true
+        | (i, (op, _)) :: ops ->
+          let (_, ob) = obs_arr.(i) in
           let res = Spec.run op state in
           if Spec.equal_res res ob
-          then check_permutation_explains state ops obs
+          then check_permutation_explains state ops obs_arr
           else false
-        | _ -> false
 
-
-      let check_for_sequential_explanation_inner pref cs1 =
+      let check_for_sequential_explanation_inner pref cs1 cs1_arr =
         let exception Found in
         try
           iter_permutations cs1 (fun cs1' ->
-              let state = Spec.init () in
-              List.iter (fun (op, _) -> ignore (Spec.run op state)) pref;
-              let explains = check_permutation_explains state cs1' cs1 in
-              Spec.cleanup state;
-              if explains then
-                raise Found
+            (* create a new state *)
+            let state = Spec.init () in
+            (* run the prefix *)
+            List.iter (fun (op, _) -> ignore (Spec.run op state)) pref;
+            (* check that from this state, cs1' explains cs1: *)
+            let explains = check_permutation_explains state cs1' cs1_arr in
+
+            Spec.cleanup state;
+            if explains then
+              raise Found
             );
           false
         with Found -> true
@@ -135,9 +138,14 @@ open struct
       let check_for_sequential_explanation pref cs1 =
         (* first check that our prefix is explained by the sequential execution *)
         let state = Spec.init () in
-        let explains = check_permutation_explains state pref pref  in
+        let explains =
+          let pref_arr = Array.of_list pref in
+          let pref = List.mapi (fun i vl -> (i,vl)) pref in
+          check_permutation_explains state pref pref_arr  in
         Spec.cleanup state;
-        explains && check_for_sequential_explanation_inner pref cs1
+        let cs1_arr = Array.of_list cs1 in
+        let cs1 = List.mapi (fun i vl -> (i,vl)) cs1 in
+        explains && check_for_sequential_explanation_inner pref cs1 cs1_arr
 
       (* Linearization test *)
       let lin_test ~rep_count ~retries ~count ~name ~lin_prop =
