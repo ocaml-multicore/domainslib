@@ -1,24 +1,0 @@
-[2Krandom seed: 229109553
-generated error fail pass / total     time test name
-[2K[ ]    0    0    0    0 /  100     0.0s STM sequential tests[2K[ ]    0    0    0    0 /  100     0.0s STM sequential tests (generating)[2K[[31;1m✗[0m]    2    0    1    1 /  100     0.0s STM sequential tests
-
---- [31;1mFailure[0m --------------------------------------------------------------------
-
-Test STM sequential tests failed (2 shrink steps):
-
-   (Add -942638288)
-   (Remove -942638288)
-   Cardinal
-
-
-+++ [34;1mMessages[0m ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-Messages for test STM sequential tests:
-
-  Results incompatible with model
-
-   (Add -942638288) : ()
-   (Remove -942638288) : Some (-942638288)
-   Cardinal : 1
-================================================================================
-[31;1mfailure[0m (1 tests failed, 0 tests errored, ran 1 tests)

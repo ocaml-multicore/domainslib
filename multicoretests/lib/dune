@@ -1,59 +1,6 @@
-(library
- (name STM)
- (public_name qcheck-stm.stm)
- (modules STM)
- (libraries qcheck-core qcheck-multicoretests-util))
-
-(library
- (name STM_sequential)
- (public_name qcheck-stm.sequential)
- (modules STM_sequential)
- (libraries qcheck-core qcheck-stm.stm))
-
-(library
- (name STM_domain)
- (public_name qcheck-stm.domain)
- (modules STM_domain)
- (libraries qcheck-core qcheck-stm.stm))
-
-(library
- (name STM_thread)
- (public_name qcheck-stm.thread)
- (modules STM_thread)
- (libraries threads qcheck-core qcheck-stm.stm))
-
-(library
- (name lin)
- (public_name qcheck-lin.lin)
- (modules lin)
- (libraries qcheck-core qcheck-core.runner qcheck-multicoretests-util))
 
 (library
  (name lin_batched)
  (public_name qcheck-lin.batched)
  (modules lin_batched)
- (libraries domainslib qcheck-core qcheck-core.runner qcheck-multicoretests-util qcheck-lin.lin))
-
-(library
- (name lin_domain)
- (public_name qcheck-lin.domain)
- (modules lin_domain)
- (libraries qcheck-core qcheck-core.runner qcheck-multicoretests-util qcheck-lin.lin))
-
-(library
- (name lin_effect)
- (public_name qcheck-lin.effect)
- (modules lin_effect)
- (libraries qcheck-core qcheck-core.runner qcheck-multicoretests-util qcheck-lin.lin))
-
-(library
- (name lin_thread)
- (public_name qcheck-lin.thread)
- (modules lin_thread)
- (libraries threads qcheck-core qcheck-core.runner qcheck-multicoretests-util qcheck-lin.lin))
-
-(library
- (name util)
- (public_name qcheck-multicoretests-util)
- (modules util)
- (libraries qcheck-core.runner unix))
+ (libraries domainslib qcheck-core qcheck-core.runner qcheck-multicoretests-util))

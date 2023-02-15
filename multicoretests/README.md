@@ -1,93 +1,68 @@
-Multicore tests
+(Batched) Multicore tests
 ===============
 
-[![Linux 5.0.0](https://github.com/ocaml-multicore/multicoretests/actions/workflows/linux-500-workflow.yml/badge.svg)](https://github.com/ocaml-multicore/multicoretests/actions/workflows/linux-500-workflow.yml)
-[![MacOSX 5.0.0](https://github.com/ocaml-multicore/multicoretests/actions/workflows/macosx-500-workflow.yml/badge.svg)](https://github.com/ocaml-multicore/multicoretests/actions/workflows/macosx-500-workflow.yml)
-[![Linux 5.0.0-bytecode](https://github.com/ocaml-multicore/multicoretests/actions/workflows/linux-500-bytecode-workflow.yml/badge.svg)](https://github.com/ocaml-multicore/multicoretests/actions/workflows/linux-500-bytecode-workflow.yml)
-[![Linux 5.0.0-debug](https://github.com/ocaml-multicore/multicoretests/actions/workflows/linux-500-debug-workflow.yml/badge.svg)](https://github.com/ocaml-multicore/multicoretests/actions/workflows/linux-500-debug-workflow.yml)
-[![Linux 32-bit 5.0.0](https://github.com/ocaml-multicore/multicoretests/actions/workflows/linux-500-32bit-workflow.yml/badge.svg)](https://github.com/ocaml-multicore/multicoretests/actions/workflows/linux-500-32bit-workflow.yml)
-[![Windows 5.0.0](https://github.com/ocaml-multicore/multicoretests/actions/workflows/windows-500-workflow.yml/badge.svg)](https://github.com/ocaml-multicore/multicoretests/actions/workflows/windows-500-workflow.yml)
-[![Windows 5.0.0-bytecode](https://github.com/ocaml-multicore/multicoretests/actions/workflows/windows-500-bytecode-workflow.yml/badge.svg)](https://github.com/ocaml-multicore/multicoretests/actions/workflows/windows-500-bytecode-workflow.yml)
-
-[![Linux 5.1.0+trunk](https://github.com/ocaml-multicore/multicoretests/actions/workflows/linux-510-trunk-workflow.yml/badge.svg)](https://github.com/ocaml-multicore/multicoretests/actions/workflows/linux-510-trunk-workflow.yml)
-[![MacOSX 5.1.0+trunk](https://github.com/ocaml-multicore/multicoretests/actions/workflows/macosx-510-trunk-workflow.yml/badge.svg)](https://github.com/ocaml-multicore/multicoretests/actions/workflows/macosx-510-trunk-workflow.yml)
-[![Linux 5.1.0+trunk-bytecode](https://github.com/ocaml-multicore/multicoretests/actions/workflows/linux-510-bytecode-trunk-workflow.yml/badge.svg)](https://github.com/ocaml-multicore/multicoretests/actions/workflows/linux-510-bytecode-trunk-workflow.yml)
-[![Linux 5.1.0+trunk-debug](https://github.com/ocaml-multicore/multicoretests/actions/workflows/linux-510-debug-trunk-workflow.yml/badge.svg)](https://github.com/ocaml-multicore/multicoretests/actions/workflows/linux-510-debug-trunk-workflow.yml)
-[![Linux 32-bit 5.1.0+trunk](https://github.com/ocaml-multicore/multicoretests/actions/workflows/linux-510-32bit-trunk-workflow.yml/badge.svg)](https://github.com/ocaml-multicore/multicoretests/actions/workflows/linux-510-32bit-trunk-workflow.yml)
-[![Windows 5.1.0+trunk](https://github.com/ocaml-multicore/multicoretests/actions/workflows/windows-510-trunk-workflow.yml/badge.svg)](https://github.com/ocaml-multicore/multicoretests/actions/workflows/windows-510-trunk-workflow.yml)
-[![Windows 5.1.0+trunk-bytecode](https://github.com/ocaml-multicore/multicoretests/actions/workflows/windows-510-trunk-bytecode-workflow.yml/badge.svg)](https://github.com/ocaml-multicore/multicoretests/actions/workflows/windows-510-trunk-bytecode-workflow.yml)
-
-Experimental property-based tests of (parts of) the OCaml multicore compiler.
+Property-based tests of Batched data structures, derived from [multicoretests](https://github.com/ocaml-multicore/multicoretests).
 
 This project contains
 - a randomized test suite of OCaml 5.0, packaged up in `multicoretests.opam`
-- two reusable testing libraries:
-  - `Lin` packaged up in `qcheck-lin.opam` and
-  - `STM` packaged up in `qcheck-stm.opam`
+- a reusable testing library for batched data structures `Lin_batched`.
 
 All of the above build on [QCheck](https://github.com/c-cube/qcheck),
-a black-box, property-based testing library in the style of QuickCheck.
+a black-box, property-based testing library in the style of
+QuickCheck.
 
-We are still experimenting with the interfaces, so consider yourself warned.
+A Linearization Tester for Batched Data structures
+==================================================
+
+Like
+[multicoretests](https://github.com/ocaml-multicore/multicoretests)'s
+`Lin` module, the `Lin_batched` module lets a user test an batched API
+for *sequential consistency*, i.e., it sends a sequence of random
+commands to the batched API, records the results, and checks whether
+the observed results can be linearized and reconciled with some
+sequential execution. The library offers an embedded, combinator DSL
+to describe signatures succinctly.
 
 
-Installation instructions, and running the tests
-================================================
+As an example, the required specification to test
+the `Btree` module is as follows:
 
-Both the libraries and the test suite require OCaml 5.0:
+```ocaml
+module IntBtree = Data.Btree.Make(Int)
+module Btree : Spec = struct
+
+  type t = int IntBtree.Sequential.t
+  type wrapped_op = int IntBtree.wrapped_op
+  let init : unit -> t = IntBtree.init
+  let cleanup : t -> unit = fun _ -> ()
+
+  let run : Domainslib.Task.pool -> t -> wrapped_op list -> unit =
+    fun pool state ops ->
+    let ops = Array.of_list ops in
+    IntBtree.run state pool ops
+    
+  let api = [
+    val_ "insert" IntBtree.Sequential.insert
+      (fun set _ key vl -> IntBtree.(Mk (Insert (key,vl), set)))
+      (t @-> int @-> int @-> returning unit);
+
+    val_ "search" IntBtree.Sequential.search
+      (fun set _ key -> IntBtree.(Mk (Search key, set)))
+      (t @-> int @-> returning (option int));
+
+    val_ "size" IntBtree.Sequential.size
+      (fun set _ -> IntBtree.(Mk (Size, set)))
+      (t @-> returning int);
+  ]
+
+end
+
+module BTT = Lin_batched.Make(Btree)
+QCheck_base_runner.run_tests_main [
+  BTT.lin_test ~count:100 ~name:"Btree test"
+]
 ```
-opam update
-opam switch create 5.0.0
-```
 
-Using `opam` you can now `pin` and install them as follows:
-```
-opam pin -y https://github.com/ocaml-multicore/multicoretests.git#main
-```
-
-To use the `Lin` library in parallel mode on a Dune project, add the
-following dependency to your dune rule:
-```
-  (libraries qcheck-lin.domain)
-```
-Using the `STM` library in sequential mode requires the dependency
-`(libraries qcheck-stm.sequential)` and the parallel mode similarly
-requires the dependency `(libraries qcheck-stm.domain)`.
-
-
-The test suite can be built and run from a clone of this repository
-with the following commands:
-```
-opam install . --deps-only --with-test
-dune build
-dune runtest -j1 --no-buffer --display=quiet
-```
-
-Individual tests can be run by invoking `dune exec`. For example:
-```
-$ dune exec src/atomic/stm_tests.exe -- -v
-random seed: 51501376
-generated error fail pass / total     time test name
-[✓] 1000    0    0 1000 / 1000     0.2s sequential atomic test
-[✓] 1000    0    0 1000 / 1000   180.8s parallel atomic test
-================================================================================
-success (ran 2 tests)
-```
-
-See [src/README.md](src/README.md) for an overview of the current
-(experimental) PBTs of OCaml 5.0.
-
-
-A Linearization Tester
-======================
-
-The `Lin` module lets a user test an API for *sequential consistency*,
-i.e., it performs a sequence of random commands in parallel, records
-the results, and checks whether the observed results can be linearized
-and reconciled with some sequential execution. The library offers an
-embedded, combinator DSL to describe signatures succinctly. As an
-example, the required specification to test (a small part of) the
-`Hashtbl` module is as follows:
 
 ``` ocaml
 module HashtblSig =
