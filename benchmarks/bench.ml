@@ -33,20 +33,26 @@ let benchmarks: (string, (module BENCHMARK)) Hashtbl.t = Hashtbl.create 32
 
 let () =
   Hashtbl.add benchmarks "btree-sequential" (module Btree.Sequential);
+  Hashtbl.add benchmarks "btree-coarse-grained" (module Btree.CoarseGrained);
   Hashtbl.add benchmarks "btree-batched" (module Btree.Batched);
-  Hashtbl.add benchmarks "btree-coarse-grained" (module Btree.CoarseGrained)
+  Hashtbl.add benchmarks "counter-sequential" (module Counter.Sequential);
+  Hashtbl.add benchmarks "counter-coarse-grained" (module Counter.CoarseGrained);
+  Hashtbl.add benchmarks "counter-batched" (module Counter.Batched);
+  Hashtbl.add benchmarks "skiplist-sequential" (module Skiplist.Sequential);
+  Hashtbl.add benchmarks "skiplist-coarse-grained" (module Skiplist.CoarseGrained);
+  Hashtbl.add benchmarks "skiplist-batched" (module Skiplist.Batched)
 
 let run_benchmark (type a) (module B: BENCHMARK with type spec_args = a)
-      show_progress no_domains no_warmup no_iter 
-      initial_count count min max (args: a) =
+    show_progress no_domains no_warmup no_iter 
+    initial_count count min max (args: a) =
   let num_domains = match no_domains with None -> Domain.recommended_domain_count () | Some d -> d in
   let pool = Domainslib.Task.setup_pool ~num_domains () in
   let test = B.test_spec ~initial_count ~count ~min ~max args in
   Domainslib.Task.run pool (fun () ->
-    Timing.time ~show_progress ~no_warmup ~no_iter ~init:(fun () -> B.init pool test ) (fun t ->
-      B.run pool t test
+      Timing.time ~show_progress ~no_warmup ~no_iter ~init:(fun () -> B.init pool test ) (fun t ->
+          B.run pool t test
+        )
     )
-  )
 
 
 let () =
@@ -73,15 +79,15 @@ let () =
   let sub_cmds =
     Hashtbl.to_seq benchmarks
     |> Seq.map (fun (name, (module B: BENCHMARK)) ->
-      let (b: (module BENCHMARK with type spec_args = B.spec_args)) = (module B) in
-      let info = Cmd.info name in
-      let action =
-        Term.(const (run_benchmark b)
-              $ show_progress $ no_domains $ no_warmup
-              $ no_iter $ initial_count $ count $ min $ max
-              $  B.spec_args) in
-      Cmd.v info action
-    )
+        let (b: (module BENCHMARK with type spec_args = B.spec_args)) = (module B) in
+        let info = Cmd.info name in
+        let action =
+          Term.(const (run_benchmark b)
+                $ show_progress $ no_domains $ no_warmup
+                $ no_iter $ initial_count $ count $ min $ max
+                $  B.spec_args) in
+        Cmd.v info action
+      )
     |> List.of_seq in
-  
+
   exit (Cmd.eval (Cmd.group info' sub_cmds))
