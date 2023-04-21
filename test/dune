@@ -16,6 +16,12 @@
  (modes native))
 
 (test
+ (name kcas_integration)
+ (libraries domainslib kcas)
+ (modules kcas_integration)
+ (modes native))
+
+(test
  (name enumerate_par)
  (libraries domainslib)
  (modules enumerate_par)
