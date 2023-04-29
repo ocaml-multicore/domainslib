@@ -32,8 +32,12 @@ type dls_state = {
   mc: mutex_condvar;
 }
 
+module Foreign_queue = Lockfree.Michael_scott_queue
+
 type 'a t = {
   channels: 'a Ws_deque.t array;
+  (* Queue for enqueuing work from outside of the pool. *)
+  foreign_queue: 'a Foreign_queue.t;
   waiters: (waiting_status ref * mutex_condvar ) Chan.t;
   next_domain_id: int Atomic.t;
   recv_block_spins: int;
@@ -54,6 +58,7 @@ let rec log2 n =
 
 let make ?(recv_block_spins = 2048) n =
   { channels = Array.init n (fun _ -> Ws_deque.create ());
+    foreign_queue = Foreign_queue.create ();
     waiters = Chan.make_unbounded ();
     next_domain_id = Atomic.make 0;
     recv_block_spins;
@@ -109,6 +114,10 @@ let rec check_waiters mchan =
           end
       end
 
+let send_foreign mchan v =
+  Foreign_queue.push mchan.foreign_queue v;
+  check_waiters mchan
+
 let send mchan v =
   let id = (get_local_state mchan).id in
   Ws_deque.push (Array.unsafe_get mchan.channels id) v;
@@ -137,7 +146,10 @@ let recv_poll_with_dls mchan dls =
   try
     Ws_deque.pop (Array.unsafe_get mchan.channels dls.id)
   with
-    | Exit -> recv_poll_loop mchan dls 0
+    | Exit ->
+      match Foreign_queue.pop mchan.foreign_queue with
+      | None -> recv_poll_loop mchan dls 0
+      | Some v -> v
   [@@inline]
 
 let recv_poll mchan =

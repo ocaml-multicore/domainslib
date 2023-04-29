@@ -80,10 +80,34 @@ let async pool f =
   Multi_channel.send pd.task_chan (Work (fun _ -> step (do_task f) p));
   p
 
+let prepare_for_await chan () =
+  let promise = Atomic.make (Pending []) in
+  let release () =
+    match Atomic.get promise with
+    | (Returned _ | Raised _) -> ()
+    | Pending _ ->
+      match Atomic.exchange promise (Returned ()) with
+      | Pending ks ->
+        ks
+        |> List.iter @@ fun (k, c) ->
+           Multi_channel.send_foreign c (Work (fun _ -> continue k ()))
+      | _ -> ()
+  and await () =
+    match Atomic.get promise with
+    | (Returned _ | Raised _) -> ()
+    | Pending _ -> perform (Wait (promise, chan))
+  in
+  Domain_local_await.{ release; await }
+
 let rec worker task_chan =
   match Multi_channel.recv task_chan with
   | Quit -> Multi_channel.clear_local_state task_chan
   | Work f -> f (); worker task_chan
+
+let worker task_chan =
+  Domain_local_await.using
+    ~prepare_for_await:(prepare_for_await task_chan)
+    ~while_running:(fun () -> worker task_chan)
 
 let run (type a) pool (f : unit -> a) : a =
   let pd = get_pool_data pool in
@@ -104,6 +128,11 @@ let run (type a) pool (f : unit -> a) : a =
    | Raised (e, bt) -> Printexc.raise_with_backtrace e bt
   in
   loop ()
+
+let run pool f =
+  Domain_local_await.using
+    ~prepare_for_await:(prepare_for_await (get_pool_data pool).task_chan)
+    ~while_running:(fun () -> run pool f)
 
 let named_pools = Hashtbl.create 8
 let named_pools_mutex = Mutex.create ()
