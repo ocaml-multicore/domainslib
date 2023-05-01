@@ -1,6 +1,6 @@
-let num_domains = try int_of_string Sys.argv.(1) with _ -> 1
-let n_times = try int_of_string Sys.argv.(2) with _ -> 20
-let board_size = try int_of_string Sys.argv.(3) with _ -> 16
+let n_times = try int_of_string Sys.argv.(1) with _ -> 20
+let board_size = try int_of_string Sys.argv.(2) with _ -> 16
+let num_domains = try Some (int_of_string Sys.argv.(3) - 1) with _ -> None
 
 module T = Domainslib.Task
 
@@ -62,7 +62,7 @@ let rec repeat pool n =
   | _-> next pool; repeat pool (n-1)
 
 let ()=
-  let pool = T.setup_pool ~num_domains:(num_domains - 1) () in
+  let pool = T.setup_pool ?num_domains () in
   print !rg;
   T.run pool (fun _ -> repeat pool n_times);
   print !rg;

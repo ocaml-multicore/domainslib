@@ -1,7 +1,9 @@
 
-let n_domains = try int_of_string Sys.argv.(1) with _ -> 1
-let n_iterations = try int_of_string Sys.argv.(2) with _ -> 1024
-let n_tasks = try int_of_string Sys.argv.(3) with _ -> 1024
+let n_iterations = try int_of_string Sys.argv.(1) with _ -> 1024
+let n_tasks = try int_of_string Sys.argv.(2) with _ -> 1024
+let n_domains =
+  try int_of_string Sys.argv.(3)
+  with _ -> Domain.recommended_domain_count ()
 
 module T = Domainslib.Task
 

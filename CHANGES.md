@@ -1,3 +1,7 @@
+## Unreleased
+
+* Make ~num_domains argument for Task.setup_pool optional (#87, #91)
+
 ## v0.5.0
 
 This release includes:

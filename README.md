@@ -21,8 +21,8 @@ We can parallelise this program using Domainslib:
 
 ```ocaml
 (* fib_par.ml *)
-let num_domains = try int_of_string Sys.argv.(1) with _ -> 1
-let n = try int_of_string Sys.argv.(2) with _ -> 1
+let n = try int_of_string Sys.argv.(1) with _ -> 1
+let num_domains = try Some (int_of_string Sys.argv.(2) - 1) with _ -> None
 
 (* Sequential Fibonacci *)
 let rec fib n = 
@@ -40,7 +40,7 @@ let rec fib_par pool n =
     fib n
 
 let main () =
-  let pool = T.setup_pool ~num_domains:(num_domains - 1) () in
+  let pool = T.setup_pool ?num_domains () in
   let res = T.run pool (fun _ -> fib_par pool n) in
   T.teardown_pool pool;
   Printf.printf "fib(%d) = %d\n" n res
@@ -51,28 +51,28 @@ let _ = main ()
 The parallel program scales nicely compared to the sequential version. The results presented below were obtained on a 2.3 GHz Quad-Core Intel Core i7 MacBook Pro with 4 cores and 8 hardware threads.
 
 ```bash
-$ hyperfine './fib.exe 42' './fib_par.exe 2 42' \
-            './fib_par.exe 4 42' './fib_par.exe 8 42'
+$ hyperfine './fib.exe 42' './fib_par.exe 42 2' \
+            './fib_par.exe 42 4' './fib_par.exe 42 8'
 Benchmark 1: ./fib.exe 42
   Time (mean ± sd):     1.217 s ±  0.018 s    [User: 1.203 s, System: 0.004 s]
   Range (min … max):    1.202 s …  1.261 s    10 runs
 
-Benchmark 2: ./fib_par.exe 2 42
+Benchmark 2: ./fib_par.exe 42 2
   Time (mean ± sd):    628.2 ms ±   2.9 ms    [User: 1243.1 ms, System: 4.9 ms]
   Range (min … max):   625.7 ms … 634.5 ms    10 runs
 
-Benchmark 3: ./fib_par.exe 4 42
+Benchmark 3: ./fib_par.exe 42 4
   Time (mean ± sd):    337.6 ms ±  23.4 ms    [User: 1321.8 ms, System: 8.4 ms]
   Range (min … max):   318.5 ms … 377.6 ms    10 runs
 
-Benchmark 4: ./fib_par.exe 8 42
+Benchmark 4: ./fib_par.exe 42 8
   Time (mean ± sd):    250.0 ms ±   9.4 ms    [User: 1877.1 ms, System: 12.6 ms]
   Range (min … max):   242.5 ms … 277.3 ms    11 runs
 
 Summary
-  './fib_par2.exe 8 42' ran
-    1.35 ± 0.11 times faster than './fib_par.exe 4 42'
-    2.51 ± 0.10 times faster than './fib_par.exe 2 42'
+  './fib_par.exe 42 8' ran
+    1.35 ± 0.11 times faster than './fib_par.exe 42 4'
+    2.51 ± 0.10 times faster than './fib_par.exe 42 2'
     4.87 ± 0.20 times faster than './fib.exe 42'
 ```
 

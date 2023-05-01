@@ -1,6 +1,6 @@
 module T = Domainslib.Task
-let num_domains = try int_of_string Sys.argv.(1) with _ -> 4
-let size = try int_of_string Sys.argv.(2) with _ -> 100
+let size = try int_of_string Sys.argv.(1) with _ -> 100
+let num_domains = try Some (int_of_string Sys.argv.(2) - 1) with _ -> None
 
 let transpose a =
   let r = Array.length a in
@@ -29,7 +29,7 @@ let calc_table pool mat =
 let _ =
   let m = Array.make_matrix size size 1 (*Array.init size (fun _ -> Array.init size (fun _ -> Random.int size))*)
   in
-  let pool = T.setup_pool ~num_domains:(num_domains - 1) () in
+  let pool = T.setup_pool ?num_domains () in
   let _ = T.run pool (fun _ -> calc_table pool m) in
 
   (* for i = 0 to size-1 do

@@ -137,7 +137,8 @@ let run pool f =
 let named_pools = Hashtbl.create 8
 let named_pools_mutex = Mutex.create ()
 
-let setup_pool ?name ~num_domains () =
+(* Domain.recommended_domain_count is guaranteed to be at least 1 *)
+let setup_pool ?name ?(num_domains = Domain.recommended_domain_count () - 1) () =
   if num_domains < 0 then
     invalid_arg "Task.setup_pool: num_domains must be at least 0"
   else
