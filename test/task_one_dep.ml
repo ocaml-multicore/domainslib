@@ -140,8 +140,10 @@ let test_two_nested_pools ~domain_bound ~promise_bound =
      true)
 
 let () =
+  let domain_bound = max 1 (Domain.recommended_domain_count () / 2) in
+  let promise_bound = max 2 domain_bound in
   QCheck_base_runner.run_tests_main [
-    test_one_pool            ~domain_bound:8 ~promise_bound:10;
-    test_two_pools_sync_last ~domain_bound:2 ~promise_bound:2;
-    test_two_nested_pools    ~domain_bound:8 ~promise_bound:10;
+    test_one_pool            ~domain_bound ~promise_bound;
+    test_two_pools_sync_last ~domain_bound ~promise_bound;
+    test_two_nested_pools    ~domain_bound ~promise_bound;
   ]
