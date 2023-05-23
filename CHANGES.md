@@ -1,3 +1,7 @@
+## Next release
+
+* `parallel_find` function that stops early (#129, #130)
+
 ## v0.5.0
 
 This release includes:

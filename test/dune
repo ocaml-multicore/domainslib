@@ -88,6 +88,12 @@
  (modes native))
 
 (test
+ (name test_parallel_find)
+ (libraries domainslib)
+ (modules test_parallel_find)
+ (modes native))
+
+(test
  (name test_deadlock)
  (libraries domainslib)
  (modules test_deadlock)

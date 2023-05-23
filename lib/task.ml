@@ -281,3 +281,35 @@ let parallel_scan pool op elements =
 
   prefix_s
   end
+
+let parallel_find (type a) ?(chunk_size=0) ~start ~finish ~body pool =
+  let pd = get_pool_data pool in
+  let found : a option Atomic.t = Atomic.make None in
+  let chunk_size = if chunk_size > 0 then chunk_size
+      else begin
+        let n_domains = (Array.length pd.domains) + 1 in
+        let n_tasks = finish - start + 1 in
+        if n_domains = 1 then n_tasks
+        else max 1 (n_tasks/(8*n_domains))
+      end
+  in
+  let rec work pool fn s e =
+    if e - s < chunk_size then
+      let i = ref s in
+      while !i <= e && Option.is_none (Atomic.get found) do
+        begin match fn !i with
+          | None -> ()
+          | Some _ as some -> Atomic.set found some
+        end;
+        incr i;
+      done
+    else if Option.is_some (Atomic.get found) then ()
+    else begin
+      let d = s + ((e - s) / 2) in
+      let left = async pool (fun _ -> work pool fn s d) in
+      work pool fn (d+1) e;
+      await pool left
+    end
+  in
+  work pool body start finish;
+  Atomic.get found
