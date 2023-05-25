@@ -10,11 +10,18 @@ let print_array a =
 let r = Array.init 20 (fun i -> i + 1)
 
 let scan_task num_doms =
-  let pool = Task.setup_pool ~num_domains:num_doms () in
-  let a = Task.run pool (fun () -> Task.parallel_scan pool (+) (Array.make 20 1)) in
-  Task.teardown_pool pool;
-  Printf.printf "%i:  %s\n%!" num_doms (print_array a);
-  assert (a = r)
+  try
+    let pool = Task.setup_pool ~num_domains:num_doms () in
+    let a = Task.run pool (fun () -> Task.parallel_scan pool (+) (Array.make 20 1)) in
+    Task.teardown_pool pool;
+    Printf.printf "%i:  %s\n%!" num_doms (print_array a);
+    assert (a = r)
+  with Failure msg ->
+    begin
+      assert (msg = "failed to allocate domain");
+      Printf.printf "Failed to allocate %i domains, recommended_domain_count: %i\n%!"
+        num_doms (Domain.recommended_domain_count ());
+    end
 ;;
 for num_dom=0 to 21 do
   scan_task num_dom;
