@@ -108,12 +108,14 @@
  (name task_one_dep)
  (modules task_one_dep)
  (libraries qcheck-multicoretests-util qcheck-core qcheck-core.runner domainslib)
+ (enabled_if (= %{arch_sixtyfour} true)) ;; takes forever on 32-bit (bytecode)
  (action (run %{test} --verbose)))
 
 (test
  (name task_more_deps)
  (modules task_more_deps)
  (libraries qcheck-multicoretests-util qcheck-core qcheck-core.runner domainslib)
+ (enabled_if (= %{arch_sixtyfour} true)) ;; takes forever on 32-bit (bytecode)
  (action (run %{test} --verbose)))
 
 (test
