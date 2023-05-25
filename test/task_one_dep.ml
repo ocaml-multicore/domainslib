@@ -111,15 +111,18 @@ let test_two_pools_sync_last ~domain_bound ~promise_bound =
     (pair gen gen)
     (Util.repeat 10 @@
      fun (input1,input2) ->
-     let pool1 = Task.setup_pool ~num_domains:input1.num_domains () in
-     let pool2 = Task.setup_pool ~num_domains:input2.num_domains () in
-     let ps1 = build_dep_graph pool1 input1 in
-     let ps2 = build_dep_graph pool2 input2 in
-     Task.run pool1 (fun () -> List.iter (fun p -> Task.await pool1 p) ps1);
-     Task.run pool2 (fun () -> List.iter (fun p -> Task.await pool2 p) ps2);
-     Task.teardown_pool pool1;
-     Task.teardown_pool pool2;
-     true)
+     try
+       let pool1 = Task.setup_pool ~num_domains:input1.num_domains () in
+       let pool2 = Task.setup_pool ~num_domains:input2.num_domains () in
+       let ps1 = build_dep_graph pool1 input1 in
+       let ps2 = build_dep_graph pool2 input2 in
+       Task.run pool1 (fun () -> List.iter (fun p -> Task.await pool1 p) ps1);
+       Task.run pool2 (fun () -> List.iter (fun p -> Task.await pool2 p) ps2);
+       Task.teardown_pool pool1;
+       Task.teardown_pool pool2;
+       true
+     with
+       Failure err -> err = "failed to allocate domain")
 
 let test_two_nested_pools ~domain_bound ~promise_bound =
   let gen = arb_deps domain_bound promise_bound in
@@ -127,17 +130,20 @@ let test_two_nested_pools ~domain_bound ~promise_bound =
     (pair gen gen)
     (Util.repeat 10 @@
      fun (input1,input2) ->
-     let pool1 = Task.setup_pool ~num_domains:input1.num_domains () in
-     let pool2 = Task.setup_pool ~num_domains:input2.num_domains () in
-     Task.run pool1 (fun () ->
-         Task.run pool2 (fun () ->
-             let ps1 = build_dep_graph pool1 input1 in
-             let ps2 = build_dep_graph pool2 input2 in
-             List.iter (fun p -> Task.await pool1 p) ps1;
-             List.iter (fun p -> Task.await pool2 p) ps2));
-     Task.teardown_pool pool1;
-     Task.teardown_pool pool2;
-     true)
+     try
+       let pool1 = Task.setup_pool ~num_domains:input1.num_domains () in
+       let pool2 = Task.setup_pool ~num_domains:input2.num_domains () in
+       Task.run pool1 (fun () ->
+           Task.run pool2 (fun () ->
+               let ps1 = build_dep_graph pool1 input1 in
+               let ps2 = build_dep_graph pool2 input2 in
+               List.iter (fun p -> Task.await pool1 p) ps1;
+               List.iter (fun p -> Task.await pool2 p) ps2));
+       Task.teardown_pool pool1;
+       Task.teardown_pool pool2;
+       true
+     with
+       Failure err -> err = "failed to allocate domain")
 
 let () =
   let domain_bound = max 1 (Domain.recommended_domain_count () / 2) in
