@@ -97,7 +97,9 @@
 (test
  (name backtrace)
  (libraries domainslib)
- (modules backtrace))
+ (modules backtrace)
+ (enabled_if (and (= %{arch_sixtyfour} true) (<> %{architecture} power))))
+ ;; disabled temporarily on bytecode switches https://github.com/ocaml/dune/issues/7845
 
 (test
  (name off_by_one)
