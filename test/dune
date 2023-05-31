@@ -35,7 +35,9 @@
  (name LU_decomposition_multicore)
  (libraries domainslib)
  (flags (:standard -runtime-variant d))
- (modules LU_decomposition_multicore))
+ (modules LU_decomposition_multicore)
+ (enabled_if (or (= %{arch_sixtyfour} true) (<> %{architecture} arm)))
+   ;; disabled temporarily on arm32 due to failure: ocaml/ocaml#12267
 
 
 (test
