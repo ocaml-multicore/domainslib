@@ -98,8 +98,14 @@
  (name backtrace)
  (libraries domainslib)
  (modules backtrace)
- (enabled_if (and (= %{arch_sixtyfour} true) (<> %{architecture} power) (<> %{architecture} s390x))))
- ;; disabled temporarily on bytecode switches https://github.com/ocaml/dune/issues/7845
+ (modes byte native))
+ ;; byte_complete .exes don't include debug+trace info https://github.com/ocaml/dune/issues/7845
+ ;; so on a bytecode switch/platform we build a plain bytecode version w/trace info
+ ;; and rename it to .exe
+(rule
+ (target backtrace.exe)
+ (action (copy backtrace.bc backtrace.exe))
+ (enabled_if (= %{bin-available:ocamlopt} false)))
 
 (test
  (name off_by_one)
