@@ -118,16 +118,14 @@
  (name task_one_dep)
  (modules task_one_dep)
  (libraries qcheck-multicoretests-util qcheck-core qcheck-core.runner domainslib)
- (enabled_if (and (= %{arch_sixtyfour} true) (<> %{architecture} power) (<> %{architecture} s390x)))
- ;; takes forever on bytecode
+ (enabled_if %{bin-available:ocamlopt}) ;; takes forever on bytecode
  (action (run %{test} --verbose)))
 
 (test
  (name task_more_deps)
  (modules task_more_deps)
  (libraries qcheck-multicoretests-util qcheck-core qcheck-core.runner domainslib)
- (enabled_if (and (= %{arch_sixtyfour} true) (<> %{architecture} power) (<> %{architecture} s390x)))
- ;; takes forever on bytecode
+ (enabled_if %{bin-available:ocamlopt}) ;; takes forever on bytecode
  (action (run %{test} --verbose)))
 
 (test
