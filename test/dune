@@ -98,6 +98,7 @@
  (name backtrace)
  (libraries domainslib)
  (modules backtrace)
+ (enabled_if (<> %{system} mingw64)) ;; triggers a known issue on mingw https://github.com/ocaml/ocaml/pull/12231
  (modes byte native))
  ;; byte_complete .exes don't include debug+trace info https://github.com/ocaml/dune/issues/7845
  ;; so on a bytecode switch/platform we build a plain bytecode version w/trace info
@@ -105,7 +106,7 @@
 (rule
  (target backtrace.exe)
  (action (copy backtrace.bc backtrace.exe))
- (enabled_if (= %{bin-available:ocamlopt} false)))
+ (enabled_if (and (= %{bin-available:ocamlopt} false) (<> %{system} mingw64))))
 
 (test
  (name off_by_one)
