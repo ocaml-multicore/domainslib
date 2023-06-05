@@ -2,7 +2,7 @@
 opam-version: "2.0"
 synopsis: "Parallel Structures over Domains for Multicore OCaml"
 maintainer: ["KC Sivaramakrishnan <kc@kcsrk.info>"]
-authors: ["KC Sivaramakrishnan <kc@kcsrk.info>"]
+authors: ["KC Sivaramakrishnan <kc@kcsrk.info>" "Sudha Parimala"]
 license: "ISC"
 homepage: "https://github.com/ocaml-multicore/domainslib"
 doc: "https://kayceesrk.github.io/domainslib/doc"
@@ -10,7 +10,7 @@ bug-reports: "https://github.com/ocaml-multicore/domainslib/issues"
 depends: [
   "dune" {>= "3.0"}
   "ocaml" {>= "5.0"}
-  "lockfree" {>= "0.2.0"}
+  "lockfree" {>= "0.3.1"}
   "domain-local-await" {>= "0.1.0"}
   "kcas" {>= "0.3.0" & with-test}
   "mirage-clock-unix" {with-test & >= "4.2.0"}

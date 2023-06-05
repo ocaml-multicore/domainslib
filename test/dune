@@ -1,127 +1,117 @@
 (test
  (name test_chan)
  (libraries domainslib)
- (modules test_chan)
- (modes native))
+ (modules test_chan))
 
 (test
  (name fib)
- (modules fib)
- (modes native))
+ (modules fib))
 
 (test
  (name fib_par)
  (libraries domainslib)
- (modules fib_par)
- (modes native))
+ (modules fib_par))
 
 (test
  (name kcas_integration)
  (libraries domainslib kcas)
- (modules kcas_integration)
- (modes native))
+ (modules kcas_integration))
 
 (test
  (name enumerate_par)
  (libraries domainslib)
- (modules enumerate_par)
- (modes native))
+ (modules enumerate_par))
 
 (test
  (name game_of_life)
- (modules game_of_life)
- (modes native))
+ (modules game_of_life))
 
 (test
  (name game_of_life_multicore)
  (libraries domainslib)
- (modules game_of_life_multicore)
- (modes native))
+ (modules game_of_life_multicore))
 
 (test
  (name LU_decomposition_multicore)
  (libraries domainslib)
  (flags (:standard -runtime-variant d))
  (modules LU_decomposition_multicore)
- (modes native))
+ (enabled_if (or (= %{arch_sixtyfour} true) (<> %{architecture} arm))))
+   ;; disabled temporarily on arm32 due to failure: ocaml/ocaml#12267
 
 
 (test
  (name spectralnorm2)
- (modules spectralnorm2)
- (modes native))
+ (modules spectralnorm2))
 
 (test
-  (name sum_par)
-  (libraries domainslib)
-	(modules sum_par)
-	(modes native))
+ (name sum_par)
+ (libraries domainslib)
+ (modules sum_par))
 
 (test
  (name task_throughput)
  (libraries domainslib mirage-clock-unix)
- (modules task_throughput)
- (modes native))
+ (modules task_throughput))
 
 (test
  (name spectralnorm2_multicore)
  (libraries domainslib)
- (modules spectralnorm2_multicore)
- (modes native))
+ (modules spectralnorm2_multicore))
 
 (test
  (name summed_area_table)
  (libraries domainslib)
- (modules summed_area_table)
- (modes native))
+ (modules summed_area_table))
 
 (test
  (name prefix_sum)
  (libraries domainslib unix)
- (modules prefix_sum)
- (modes native))
+ (modules prefix_sum))
 
 (test
  (name test_task)
  (libraries domainslib)
- (modules test_task)
- (modes native))
+ (modules test_task))
 
 (test
  (name test_parallel_find)
  (libraries domainslib)
- (modules test_parallel_find)
- (modes native))
+ (modules test_parallel_find))
 
 (test
  (name test_deadlock)
  (libraries domainslib)
- (modules test_deadlock)
- (modes native))
+ (modules test_deadlock))
 
 (test
  (name test_task_crash)
  (libraries domainslib)
- (modules test_task_crash)
- (modes native))
+ (modules test_task_crash))
 
 (test
  (name test_task_empty)
  (libraries domainslib)
- (modules test_task_empty)
- (modes native))
+ (modules test_task_empty))
 
 (test
  (name backtrace)
  (libraries domainslib)
  (modules backtrace)
- (modes native))
+ (enabled_if (<> %{system} mingw64)) ;; triggers a known issue on mingw https://github.com/ocaml/ocaml/pull/12231
+ (modes byte native))
+ ;; byte_complete .exes don't include debug+trace info https://github.com/ocaml/dune/issues/7845
+ ;; so on a bytecode switch/platform we build a plain bytecode version w/trace info
+ ;; and rename it to .exe
+(rule
+ (target backtrace.exe)
+ (action (copy backtrace.bc backtrace.exe))
+ (enabled_if (and (= %{bin-available:ocamlopt} false) (<> %{system} mingw64))))
 
 (test
  (name off_by_one)
  (libraries domainslib)
- (modules off_by_one)
- (modes native))
+ (modules off_by_one))
 
 ;; Custom property-based tests using QCheck
 
@@ -129,12 +119,14 @@
  (name task_one_dep)
  (modules task_one_dep)
  (libraries qcheck-multicoretests-util qcheck-core qcheck-core.runner domainslib)
+ (enabled_if %{bin-available:ocamlopt}) ;; takes forever on bytecode
  (action (run %{test} --verbose)))
 
 (test
  (name task_more_deps)
  (modules task_more_deps)
  (libraries qcheck-multicoretests-util qcheck-core qcheck-core.runner domainslib)
+ (enabled_if %{bin-available:ocamlopt}) ;; takes forever on bytecode
  (action (run %{test} --verbose)))
 
 (test
