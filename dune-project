@@ -6,7 +6,7 @@
 (source (github ocaml-multicore/domainslib))
 (authors "KC Sivaramakrishnan <kc@kcsrk.info>")
 (maintainers "KC Sivaramakrishnan <kc@kcsrk.info>" "Sudha Parimala")
-(documentation "https://kayceesrk.github.io/domainslib/doc")
+(documentation "https://ocaml-multicore.github.io/domainslib/doc")
 (license "ISC")
 
 (package

@@ -5,7 +5,7 @@ maintainer: ["KC Sivaramakrishnan <kc@kcsrk.info>" "Sudha Parimala"]
 authors: ["KC Sivaramakrishnan <kc@kcsrk.info>"]
 license: "ISC"
 homepage: "https://github.com/ocaml-multicore/domainslib"
-doc: "https://kayceesrk.github.io/domainslib/doc"
+doc: "https://ocaml-multicore.github.io/domainslib/doc"
 bug-reports: "https://github.com/ocaml-multicore/domainslib/issues"
 depends: [
   "dune" {>= "3.0"}
