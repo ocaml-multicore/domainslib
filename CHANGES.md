@@ -1,7 +1,3 @@
-## Next release
-
-* `parallel_find` function that stops early (#129, #130)
-
 ## 0.5.1
 
 * Add parallel_find (#90, @gasche)
