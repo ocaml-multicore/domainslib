@@ -5,7 +5,7 @@
 
 (source (github ocaml-multicore/domainslib))
 (authors "KC Sivaramakrishnan <kc@kcsrk.info>")
-(maintainers "KC Sivaramakrishnan <kc@kcsrk.info>")
+(maintainers "KC Sivaramakrishnan <kc@kcsrk.info>" "Sudha Parimala")
 (documentation "https://kayceesrk.github.io/domainslib/doc")
 (license "ISC")
 
@@ -14,7 +14,7 @@
  (synopsis "Parallel Structures over Domains for Multicore OCaml")
  (depends
   (ocaml (>= "5.0"))
-  (lockfree (>= "0.2.0"))
+  (saturn (>= "0.4.0"))
   (domain-local-await (>= 0.1.0))
   (kcas (and (>= 0.3.0) :with-test))
   (mirage-clock-unix (and :with-test (>= "4.2.0")))
