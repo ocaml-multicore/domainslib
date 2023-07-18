@@ -1,4 +1,4 @@
 (library
  (name domainslib)
  (public_name domainslib)
- (libraries lockfree domain-local-await))
+ (libraries saturn domain-local-await))

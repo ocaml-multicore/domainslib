@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Ws_deque = Lockfree.Ws_deque.M
+module Ws_deque = Saturn.Work_stealing_deque.M
 
 type mutex_condvar = {
   mutex: Mutex.t;
@@ -32,7 +32,7 @@ type dls_state = {
   mc: mutex_condvar;
 }
 
-module Foreign_queue = Lockfree.Michael_scott_queue
+module Foreign_queue = Saturn.Queue
 
 type 'a t = {
   channels: 'a Ws_deque.t array;
