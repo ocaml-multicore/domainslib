@@ -14,6 +14,8 @@
 * Dune, opam, and GitHub Actions fixes (#105, @MisterDA)
 * domain local await support (#107, @polytypic)
 * Windows run on GitHub Actions (#110, @Sudha247)
+* Adjust PBTs based on recommended_domain_count (#112, @jmid)
+* Test condition tweaks (#113, @jmid)
 
 ## 0.5.0
 
