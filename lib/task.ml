@@ -267,7 +267,7 @@ let parallel_scan pool op elements =
   let x = ref prefix_s.(n/p - 1) in
   for i = 2 to p do
       let ind = i * n / p - 1 in
-      x := op prefix_s.(ind) !x;
+      x := op !x prefix_s.(ind);
       prefix_s.(ind) <- !x
   done;
 
