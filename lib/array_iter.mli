@@ -1,6 +1,7 @@
 
 val parallel_iter : ('a -> unit) -> 'a array -> Task.pool -> unit
-(** [parallel_iter f a pool] applies function f in turn to all the elements of a
+(** [parallel_iter f a pool] applies function [f] in turn to all the elements of [a]
+    [pool] is the Task Pool
     It does Stdlib.Array.iter in parallel *)
 
 val parallel_iteri : (int -> 'a -> unit) -> 'a array -> Task.pool -> unit
