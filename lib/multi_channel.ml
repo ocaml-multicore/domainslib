@@ -147,7 +147,7 @@ let recv_poll_with_dls mchan dls =
     Ws_deque.pop (Array.unsafe_get mchan.channels dls.id)
   with
     | Exit ->
-      match Foreign_queue.pop mchan.foreign_queue with
+      match Foreign_queue.pop_opt mchan.foreign_queue with
       | None -> recv_poll_loop mchan dls 0
       | Some v -> v
   [@@inline]
