@@ -92,7 +92,7 @@ $ opam install domainslib
 If you are interested in hacking on the implementation, then `opam pin` this repository:
 
 ```bash
-$ opam switch create 5.0.0+trunk --repo=default,alpha=git+https://github.com/kit-ty-kate/opam-alpha-repository.git
+$ opam switch create 5.0.1+trunk --repo=default,alpha=git+https://github.com/kit-ty-kate/opam-alpha-repository.git
 $ git clone https://github.com/ocaml-multicore/domainslib
 $ cd domainslib
 $ opam pin add domainslib file://`pwd`
