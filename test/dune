@@ -80,6 +80,11 @@
  (modules test_parallel_find))
 
 (test
+ (name test_parallel_array)
+ (libraries domainslib)
+ (modules test_parallel_array))
+
+(test
  (name test_parallel_scan)
  (libraries domainslib)
  (modules test_parallel_scan))

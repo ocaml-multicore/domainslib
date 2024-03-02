@@ -45,6 +45,7 @@ type 'a t = {
 }
 
 let dls_make_key () =
+  let open Stdlib in
   Domain.DLS.new_key (fun () ->
     {
       id = -1;
@@ -57,6 +58,7 @@ let rec log2 n =
   if n <= 1 then 0 else 1 + (log2 (n asr 1))
 
 let make ?(recv_block_spins = 2048) n =
+  let open Stdlib in
   { channels = Array.init n (fun _ -> Ws_deque.create ());
     foreign_queue = Foreign_queue.create ();
     waiters = Chan.make_unbounded ();
@@ -67,11 +69,13 @@ let make ?(recv_block_spins = 2048) n =
 
 let register_domain mchan =
   let id = Atomic.fetch_and_add mchan.next_domain_id 1 in
+  let open Stdlib  in
   assert(id < Array.length mchan.channels);
   id
 
 let init_domain_state mchan dls_state =
   let id = register_domain mchan in
+  let open Stdlib  in
   let len = Array.length mchan.channels in
   dls_state.id <- id;
   dls_state.steal_offsets <- Array.init (len - 1) (fun i -> (id + i + 1) mod len);
@@ -81,6 +85,7 @@ let init_domain_state mchan dls_state =
 let get_local_state mchan =
   let dls_state = Domain.DLS.get mchan.dls_key in
   if dls_state.id >= 0 then begin
+    let open Stdlib  in
     assert (dls_state.id < Array.length mchan.channels);
     dls_state
   end
@@ -120,11 +125,13 @@ let send_foreign mchan v =
 
 let send mchan v =
   let id = (get_local_state mchan).id in
+  let open Stdlib  in
   Ws_deque.push (Array.unsafe_get mchan.channels id) v;
   check_waiters mchan
 
 let rec recv_poll_loop mchan dls cur_offset =
   let offsets = dls.steal_offsets in
+  let open Stdlib  in
   let k = (Array.length offsets) - cur_offset in
   if k = 0 then raise Exit
   else begin
@@ -144,6 +151,7 @@ let rec recv_poll_loop mchan dls cur_offset =
 
 let recv_poll_with_dls mchan dls =
   try
+    let open Stdlib  in
     Ws_deque.pop (Array.unsafe_get mchan.channels dls.id)
   with
     | Exit ->
