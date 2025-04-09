@@ -83,7 +83,7 @@ More example programs are available [here](https://github.com/ocaml-multicore/do
 You can install this library using `OPAM`. 
 
 ```bash
-$ opam switch create 5.1.0
+$ opam switch create 5.3.0
 $ opam install domainslib
 ```
 
