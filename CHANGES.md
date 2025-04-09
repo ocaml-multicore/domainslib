@@ -1,3 +1,12 @@
+## 0.5.2
+
+* Upgrade to Saturn 1.0 (#129, @Sudha247)
+* Update README.md instruction to use OCaml 5.1.0 (#123, @punchagan)
+* Fix Saturn.Queue function (#121, @Sudha247)
+* Make parallel_scan work on noncommutative functions (#118, @aytao)
+* Test condition tweaks (#113, @jmid)
+* Adjust PBTs based on recommended_domain_count (#112, @jmid)
+
 ## 0.5.1
 
 * Add parallel_find (#90, @gasche)
