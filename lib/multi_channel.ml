@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-module Ws_deque = Saturn.Work_stealing_deque.M
+module Ws_deque = Saturn.Work_stealing_deque
 
 type mutex_condvar = {
   mutex: Mutex.t;
@@ -132,9 +132,9 @@ let rec recv_poll_loop mchan dls cur_offset =
     let t = Array.unsafe_get offsets idx in
     let channel = Array.unsafe_get mchan.channels t in
     try
-      Ws_deque.steal channel
+      Ws_deque.steal_exn channel
     with
-      | Exit ->
+      | Saturn.Work_stealing_deque.Empty ->
         begin
           Array.unsafe_set offsets idx (Array.unsafe_get offsets cur_offset);
           Array.unsafe_set offsets cur_offset t;
@@ -144,9 +144,9 @@ let rec recv_poll_loop mchan dls cur_offset =
 
 let recv_poll_with_dls mchan dls =
   try
-    Ws_deque.pop (Array.unsafe_get mchan.channels dls.id)
+    Ws_deque.pop_exn (Array.unsafe_get mchan.channels dls.id)
   with
-    | Exit ->
+    | Saturn.Work_stealing_deque.Empty ->
       match Foreign_queue.pop_opt mchan.foreign_queue with
       | None -> recv_poll_loop mchan dls 0
       | Some v -> v
