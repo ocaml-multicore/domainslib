@@ -53,6 +53,64 @@ val await : pool -> 'a promise -> 'a
     Must be called with a call to {!run} in the dynamic scope to handle the
     internal algebraic effects for task synchronization. *)
 
+(** {2 Automatic Parallelism with Heartbeat Scheduling} *)
+
+(** {3 Zero-overhead API (recommended)} *)
+
+val par_init : unit -> unit
+(** [par_init ()] initializes heartbeat state for the current fiber.
+    Call once at the start of a parallel computation. *)
+
+val maybe_fork : unit -> bool
+(** [maybe_fork ()] returns true if we should fork now.
+    Uses fiber-local state - no argument passing needed! *)
+
+val get_child_state : unit -> Heartbeat.state
+(** [get_child_state ()] splits tokens and returns the child's state.
+    The child task must call [Heartbeat.install_state] with this. *)
+
+(** Example (zero-overhead API):
+    {[
+      let rec fib pool n =
+        if n < 2 then n
+        else if Task.maybe_fork () then begin
+          let child_hb = Task.get_child_state () in
+          let a = Task.async pool (fun () ->
+            Heartbeat.install_state child_hb;
+            fib pool (n-1)
+          ) in
+          let b = fib pool (n-2) in
+          Task.await pool a + b
+        end else
+          fib pool (n-1) + fib pool (n-2)
+
+      let () =
+        let pool = Task.setup_pool ~num_domains:8 () in
+        let result = Task.run pool (fun () ->
+          Task.par_init ();
+          fib pool 42
+        ) in
+        Task.teardown_pool pool
+    ]}
+
+    Must be called within {!run}. *)
+
+(** {3 Explicit context API (legacy)} *)
+
+type par
+(** Parallel context for automatic parallelism decisions. *)
+
+val par_context : pool -> par
+(** [par_context pool] creates a fresh parallel context. *)
+
+val should_fork : par -> bool
+(** [should_fork ctx] returns true if the context should fork. *)
+
+val fork : par -> par
+(** [fork ctx] creates a child context with split tokens. *)
+
+(** {2 Data-Parallel Operations} *)
+
 val parallel_for : ?chunk_size:int -> start:int -> finish:int ->
                    body:(int -> unit) -> pool -> unit
 (** [parallel_for c s f b p] behaves similar to [for i=s to f do b i done], but

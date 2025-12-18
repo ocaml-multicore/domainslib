@@ -1,60 +1,91 @@
-(* Benchmark: Heartbeat scheduling for parallel Fibonacci *)
+(* Benchmark: Compare manual cutoff vs heartbeat scheduling *)
 
 module T = Domainslib.Task
-module H = Domainslib.Heartbeat
+module H = Domainslib.Heartbeat_internal
 
-let rec fib_seq n =
-  if n <= 1 then n
-  else fib_seq (n-1) + fib_seq (n-2)
+let num_domains = 8
+let n = 42
 
+(* Sequential fib *)
+let rec fib n =
+  if n < 2 then n
+  else fib (n-1) + fib (n-2)
+
+(* Manual cutoff at n <= 20 *)
 let rec fib_cutoff pool n =
-  if n <= 20 then fib_seq n
+  if n <= 20 then fib n
   else
-    let p = T.async pool (fun () -> fib_cutoff pool (n - 1)) in
-    let b = fib_cutoff pool (n - 2) in
-    T.await pool p + b
+    let a = T.async pool (fun () -> fib_cutoff pool (n-1)) in
+    let b = fib_cutoff pool (n-2) in
+    T.await pool a + b
 
-let rec fib_heartbeat pool state n =
-  if n <= 1 then n
-  else if H.use_token state then begin
-    H.maybe_refill state;
-    let child = H.split state in
-    let p = T.async pool (fun () -> fib_heartbeat pool child (n - 1)) in
-    let b = fib_heartbeat pool state (n - 2) in
-    T.await pool p + b
-  end else
-    fib_heartbeat pool state (n - 1) + fib_heartbeat pool state (n - 2)
+(* Heartbeat - simplest version, just pass hb state *)
+let fib_heartbeat pool n =
+  let module H = Domainslib.Heartbeat in
+  let rec go hb n =
+    if n < 2 then n
+    else if H.use_token hb then begin
+      let child_hb = H.fork hb in
+      let a = T.async pool (fun () ->
+        H.install_state child_hb;
+        go child_hb (n-1)
+      ) in
+      let b = go hb (n-2) in
+      T.await pool a + b
+    end else
+      go hb (n-1) + go hb (n-2)
+  in
+  go (H.make_state ()) n
 
-let time f =
-  let t0 = Unix.gettimeofday () in
-  let r = f () in
-  (r, Unix.gettimeofday () -. t0)
+let time_avg ~iters f =
+  (* Warmup *)
+  for _ = 1 to 2 do ignore (f ()) done;
+  (* Timed runs *)
+  let total = ref 0.0 in
+  let result = ref 0 in
+  for _ = 1 to iters do
+    let t0 = Unix.gettimeofday () in
+    result := f ();
+    let t1 = Unix.gettimeofday () in
+    total := !total +. (t1 -. t0)
+  done;
+  (!result, !total /. float_of_int iters)
+
+let iters = 5
 
 let () =
-  let n = 42 in
-  let num_domains = 4 in
-  Printf.printf "=== Heartbeat Benchmark (n=%d, %d domains) ===\n\n" n num_domains;
+  Printf.printf "=== Fib(%d) Benchmark (domains=%d, iters=%d) ===\n\n" n num_domains iters;
 
-  let result_seq, time_seq = time (fun () -> fib_seq n) in
-  Printf.printf "Sequential:      fib(%d) = %d, time = %.3fs\n" n result_seq time_seq;
+  (* Sequential baseline *)
+  let (result_seq, time_seq) = time_avg ~iters (fun () -> fib n) in
+  Printf.printf "Sequential:       %.3fs (result=%d)\n" time_seq result_seq;
 
-  let pool = T.setup_pool ~num_domains:(num_domains - 1) () in
-  let result_cutoff, time_cutoff = time (fun () ->
-    T.run pool (fun () -> fib_cutoff pool n)) in
+  (* Manual cutoff *)
+  let pool = T.setup_pool ~num_domains () in
+  let (result_cutoff, time_cutoff) = time_avg ~iters (fun () ->
+    T.run pool (fun () -> fib_cutoff pool n)
+  ) in
   T.teardown_pool pool;
-  Printf.printf "Cutoff (n<=20):  fib(%d) = %d, time = %.3fs (%.1fx)\n" 
-    n result_cutoff time_cutoff (time_seq /. time_cutoff);
+  Printf.printf "Manual cutoff:    %.3fs (result=%d, speedup=%.2fx)\n"
+    time_cutoff result_cutoff (time_seq /. time_cutoff);
 
-  H.start ();
+  (* Heartbeat - passing only hb state, pool is captured *)
+  let pool = T.setup_pool ~num_domains () in
   H.reset_stats ();
-  let pool = T.setup_pool ~num_domains:(num_domains - 1) () in
-  let result_hb, time_hb = time (fun () ->
-    T.run pool (fun () -> fib_heartbeat pool (H.make ()) n)) in
+  let (result_hb, time_hb) = time_avg ~iters (fun () ->
+    T.run pool (fun () ->
+      fib_heartbeat pool n
+    )
+  ) in
+  let (heartbeats, callbacks) = H.stats () in
   T.teardown_pool pool;
-  let (beats, _) = H.stats () in
-  H.stop ();
-  Printf.printf "Heartbeat:       fib(%d) = %d, time = %.3fs (%.1fx)\n"
-    n result_hb time_hb (time_seq /. time_hb);
-  Printf.printf "  (%d heartbeats)\n" beats;
+  Printf.printf "Heartbeat:        %.3fs (result=%d, speedup=%.2fx)\n"
+    time_hb result_hb (time_seq /. time_hb);
+  Printf.printf "  heartbeats=%d, callbacks=%d\n" heartbeats callbacks;
 
-  Printf.printf "\nHeartbeat vs cutoff: %.2fx\n" (time_hb /. time_cutoff)
+  Printf.printf "\nHeartbeat vs Cutoff: %.2fx\n" (time_hb /. time_cutoff);
+
+  if result_seq = result_cutoff && result_seq = result_hb then
+    Printf.printf "=== CORRECT ===\n"
+  else
+    Printf.printf "=== ERROR ===\n"

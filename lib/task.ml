@@ -14,7 +14,7 @@ type task_chan = message Multi_channel.t
 type pool_data = {
   domains : unit Domain.t array;
   task_chan : task_chan;
-  name: string option
+  name: string option;
 }
 
 type pool = pool_data option Atomic.t
@@ -145,6 +145,8 @@ let setup_pool ?name ~num_domains () =
   let domains = Array.init num_domains (fun _ ->
     Domain.spawn (fun _ -> worker task_chan))
   in
+  (* Start heartbeat for automatic parallelism *)
+  Heartbeat.start ();
   let p = Atomic.make (Some {domains; task_chan; name}) in
   begin match name with
     | None -> ()
@@ -162,6 +164,8 @@ let teardown_pool pool =
   done;
   Multi_channel.clear_local_state pd.task_chan;
   Array.iter Domain.join pd.domains;
+  (* Stop heartbeat *)
+  Heartbeat.stop ();
   (* Remove the pool from the table *)
   begin match pd.name with
   | None -> ()
@@ -313,3 +317,28 @@ let parallel_find (type a) ?(chunk_size=0) ~start ~finish ~body pool =
   in
   work pool body start finish;
   Atomic.get found
+
+(* === Heartbeat-based automatic parallelism === *)
+
+(* Old API with explicit context - kept for compatibility *)
+type par = {
+  pool : pool;
+  hb : Heartbeat.state;
+}
+
+let par_context pool : par =
+  { pool; hb = Heartbeat.make_state () }
+
+let[@inline] should_fork ctx = Heartbeat.use_token ctx.hb
+let[@inline] fork ctx = { pool = ctx.pool; hb = Heartbeat.fork ctx.hb }
+
+(* New API: No context passing - uses fiber-local state directly! *)
+
+(* Initialize heartbeat state for this fiber *)
+let[@inline] par_init () = ignore (Heartbeat.make_state () : Heartbeat.state)
+
+(* Check if we should fork - reads from fiber-local state, no argument! *)
+let[@inline] maybe_fork () = Heartbeat.use_token_current ()
+
+(* Get child state for spawned task - reads from fiber-local state *)
+let[@inline] get_child_state () = Heartbeat.fork_current ()

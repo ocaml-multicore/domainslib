@@ -154,3 +154,15 @@
  (modules chan_stm_tests)
  (libraries qcheck-stm.sequential qcheck-stm.domain domainslib)
  (action (run %{test} --verbose)))
+
+(executable
+ (name test_small)
+ (libraries domainslib)
+ (modules test_small))
+
+(executable
+ (name bench_analysis)
+ (libraries domainslib unix)
+ (modules bench_analysis))
+(executable (name bench_analysis2) (libraries domainslib unix) (modules bench_analysis2))
+(executable (name bench_counter) (libraries domainslib unix) (modules bench_counter))

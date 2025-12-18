@@ -34,10 +34,10 @@ let () =
     fib_heartbeat pool state n
   ) in
   T.teardown_pool pool;
-  let (heartbeats, _) = H.stats () in
+  let (heartbeats, callbacks) = H.stats () in
   H.stop ();
 
-  Printf.printf "Heartbeat fib(%d) = %d (heartbeats: %d)\n" n result heartbeats;
+  Printf.printf "Heartbeat fib(%d) = %d (heartbeats: %d, callbacks: %d)\n" n result heartbeats callbacks;
 
   if result = expected then
     Printf.printf "\n=== PASSED ===\n"

@@ -1,35 +1,56 @@
-(*
- * Heartbeat scheduling for Domainslib.Task
+(**
+ * Internal heartbeat scheduling for Domainslib.Task
  *
- * A background pthread periodically deposits tokens. At fork points, if tokens > 0,
- * spawn in parallel; otherwise run sequentially.
+ * This module is internal - users should use Task.fork_join and Task.maybe_fork.
  *)
 
-type t
-(** Fiber state for heartbeat scheduling. *)
+(** {1 Internal State Type} *)
 
-val make : unit -> t
-(** Create a new fiber state with initial tokens. *)
+type state
+(** Mutable fiber state for heartbeat scheduling. *)
 
-val use_token : t -> bool
-(** [use_token state] attempts to use a token. Returns [true] if available
-    (spawn parallel); [false] otherwise (run sequential). *)
+(** {1 Internal API (used by Task)} *)
 
-val maybe_refill : t -> unit
-(** [maybe_refill state] periodically checks for new tokens from the heartbeat.
-    Call this after [use_token] returns [true]. *)
+val make_state : unit -> state
+(** Create a new fiber state with initial tokens on the current fiber. *)
 
-val split : t -> t
-(** [split state] creates a child state with half the parent's tokens. *)
+val install_state : state -> unit
+(** Install an existing state on the current fiber (for spawned tasks). *)
+
+val has_tokens : state -> bool
+(** Check if we have tokens available for parallelization. *)
+
+val use_token : state -> bool
+(** [use_token state] attempts to use a token.
+    Returns [true] if available (spawn parallel); [false] otherwise. *)
+
+val use_token_current : unit -> bool
+(** [use_token_current ()] attempts to use a token from the current fiber's state.
+    No argument passing needed - reads from fiber-local storage directly. *)
+
+val split_for_child : state -> state
+(** [split_for_child state] splits tokens between parent and child, returns child state. *)
+
+val fork : state -> state
+(** [fork state] creates a child state with half the tokens. Alias for split_for_child. *)
+
+val fork_current : unit -> state
+(** [fork_current ()] creates a child state from the current fiber's state.
+    No argument passing needed - reads from fiber-local storage directly. *)
+
+(** {1 Lifecycle (used by Task.setup_pool / teardown_pool)} *)
 
 val start : unit -> unit
-(** Start the heartbeat pthread. *)
+(** Start the heartbeat pthread and register the interrupt hook. *)
 
 val stop : unit -> unit
-(** Stop the heartbeat pthread. *)
+(** Stop participating in heartbeat (decrement refcount). *)
+
+(** {1 Debug/Testing} *)
 
 val stats : unit -> int * int
-(** [stats ()] returns [(heartbeat_count, tokens_used)] for debugging. *)
+(** [stats ()] returns [(heartbeat_count, callbacks_invoked)] for debugging. *)
 
 val reset_stats : unit -> unit
 (** Reset heartbeat statistics. *)
+
