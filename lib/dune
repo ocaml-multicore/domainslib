@@ -1,4 +1,7 @@
 (library
  (name domainslib)
  (public_name domainslib)
- (libraries saturn domain-local-await))
+ (libraries saturn domain-local-await unix)
+ (foreign_stubs
+  (language c)
+  (names heartbeat_stubs)))

@@ -4,6 +4,21 @@
  (modules test_chan))
 
 (test
+ (name test_heartbeat)
+ (libraries domainslib unix)
+ (modules test_heartbeat))
+
+(executable
+ (name bench_fib)
+ (libraries domainslib unix)
+ (modules bench_fib))
+
+(executable
+ (name bench_heartbeat)
+ (libraries domainslib unix)
+ (modules bench_heartbeat))
+
+(test
  (name fib)
  (modules fib))
 
@@ -37,8 +52,6 @@
  (flags (:standard -runtime-variant d))
  (modules LU_decomposition_multicore)
  (enabled_if (or (= %{arch_sixtyfour} true) (<> %{architecture} arm))))
-   ;; disabled temporarily on arm32 due to failure: ocaml/ocaml#12267
-
 
 (test
  (name spectralnorm2)
@@ -103,11 +116,9 @@
  (name backtrace)
  (libraries domainslib)
  (modules backtrace)
- (enabled_if (<> %{system} mingw64)) ;; triggers a known issue on mingw https://github.com/ocaml/ocaml/pull/12231
+ (enabled_if (<> %{system} mingw64))
  (modes byte native))
- ;; byte_complete .exes don't include debug+trace info https://github.com/ocaml/dune/issues/7845
- ;; so on a bytecode switch/platform we build a plain bytecode version w/trace info
- ;; and rename it to .exe
+
 (rule
  (target backtrace.exe)
  (action (copy backtrace.bc backtrace.exe))
@@ -118,20 +129,18 @@
  (libraries domainslib)
  (modules off_by_one))
 
-;; Custom property-based tests using QCheck
-
 (test
  (name task_one_dep)
  (modules task_one_dep)
  (libraries qcheck-multicoretests-util qcheck-core qcheck-core.runner domainslib)
- (enabled_if %{bin-available:ocamlopt}) ;; takes forever on bytecode
+ (enabled_if %{bin-available:ocamlopt})
  (action (run %{test} --verbose)))
 
 (test
  (name task_more_deps)
  (modules task_more_deps)
  (libraries qcheck-multicoretests-util qcheck-core qcheck-core.runner domainslib)
- (enabled_if %{bin-available:ocamlopt}) ;; takes forever on bytecode
+ (enabled_if %{bin-available:ocamlopt})
  (action (run %{test} --verbose)))
 
 (test
@@ -139,8 +148,6 @@
  (modules task_parallel)
  (libraries qcheck-multicoretests-util qcheck-core qcheck-core.runner domainslib)
  (action (run %{test} --verbose)))
-
-;; STM_sequential and STM_domain test of Domainslib.Chan
 
 (test
  (name chan_stm_tests)
