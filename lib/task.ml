@@ -12,7 +12,7 @@ type message =
 type task_chan = message Multi_channel.t
 
 type pool_data = {
-  domains : unit Domain.t array;
+  domains : unit Domain.t option array;
   task_chan : task_chan;
   name: string option
 }
@@ -143,7 +143,7 @@ let setup_pool ?name ~num_domains () =
   else
   let task_chan = Multi_channel.make (num_domains+1) in
   let domains = Array.init num_domains (fun _ ->
-    Domain.spawn (fun _ -> worker task_chan))
+    try Some (Domain.spawn (fun _ -> worker task_chan)) with Failure _ -> None)
   in
   let p = Atomic.make (Some {domains; task_chan; name}) in
   begin match name with
@@ -161,7 +161,7 @@ let teardown_pool pool =
     Multi_channel.send pd.task_chan Quit
   done;
   Multi_channel.clear_local_state pd.task_chan;
-  Array.iter Domain.join pd.domains;
+  Array.iter (Option.iter Domain.join) pd.domains;
   (* Remove the pool from the table *)
   begin match pd.name with
   | None -> ()
