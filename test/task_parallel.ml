@@ -7,7 +7,7 @@ let count = 250
 
 let test_parallel_for =
   Test.make ~name:"Domainslib.Task.parallel_for test" ~count
-    (triple (int_bound 10) small_nat small_nat)
+    (triple (int_bound 10) nat_small nat_small)
     (fun (num_domains,array_size,chunk_size) ->
        let pool = Task.setup_pool ~num_domains () in
        let res = Task.run pool (fun () ->
@@ -19,7 +19,7 @@ let test_parallel_for =
 
 let test_parallel_for_reduce =
   Test.make ~name:"Domainslib.Task.parallel_for_reduce test" ~count
-    (triple (int_bound 10) small_nat small_nat)
+    (triple (int_bound 10) nat_small nat_small)
     (fun (num_domains,array_size,chunk_size) ->
        let pool = Task.setup_pool ~num_domains () in
        let res = Task.run pool (fun () ->
@@ -29,7 +29,7 @@ let test_parallel_for_reduce =
 
 let test_parallel_scan =
   Test.make ~name:"Domainslib.Task.parallel_scan test" ~count
-    (pair (int_bound 10) small_nat)
+    (pair (int_bound 10) nat_small)
     (fun (num_domains,array_size) ->
        let pool = Task.setup_pool ~num_domains () in
        let a = Task.run pool (fun () -> Task.parallel_scan pool (+) (Array.make array_size 1)) in
