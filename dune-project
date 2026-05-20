@@ -18,6 +18,6 @@
   (domain-local-await (>= 0.1.0))
   (kcas (and (>= 0.3.0) :with-test))
   (mirage-clock-unix (and :with-test (>= "4.2.0")))
-  (qcheck-core (and :with-test (>= "0.20")))
+  (qcheck-core (and :with-test (>= "0.90")))
   (qcheck-multicoretests-util (and :with-test (>= "0.1")))
   (qcheck-stm (and :with-test (>= "0.1")))))
